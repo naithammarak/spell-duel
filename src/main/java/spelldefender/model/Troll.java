@@ -6,12 +6,17 @@ import java.awt.Color;
 class Troll extends Enemy {
 
     Troll(double x, double y) {
-        super(x, y, 22, 80, 25, 15);
+        super(x, y, 20, 100, 26, 8);
     }
 
     @Override
     void knockBack(double distance) {
         super.knockBack(distance / 2);
+    }
+
+    @Override
+    int bounty() {
+        return 5;
     }
 
     @Override

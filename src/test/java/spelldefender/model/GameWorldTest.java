@@ -101,9 +101,10 @@ class GameWorldTest {
     @Test
     void enemyReachingBaseHurtsIt() {
         GameWorld w = emptyWorld();
-        w.addEnemy(new Goblin(w.base().frontX() + 20, 304));
+        Goblin goblin = new Goblin(w.base().frontX() + 20, 304);
+        w.addEnemy(goblin);
         run(w, 1.0);
-        assertEquals(Base.MAX_HP - 5, w.base().hp());
+        assertEquals(Base.MAX_HP - goblin.attack(), w.base().hp());
         assertTrue(w.enemies().isEmpty());
     }
 
@@ -163,7 +164,7 @@ class GameWorldTest {
         Goblin far = new Goblin(700, 144);
         w.addEnemy(near);
         w.addEnemy(far);
-        w.lockTargetAt(705, 150);
+        w.click(705, 150); // ไม่ได้เลือกนักเวท → คลิกศัตรู = ล็อกเป้า
         assertSame(far, w.currentLockTarget());
     }
 }

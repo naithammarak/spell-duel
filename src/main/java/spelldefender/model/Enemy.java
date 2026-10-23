@@ -12,11 +12,14 @@ import java.awt.Graphics2D;
  */
 abstract class Enemy extends Entity {
 
-    protected final double maxHp;
+    protected double maxHp;
     protected double hp;
     protected final double speed;  // พิกเซลต่อวินาที
     protected final int attack;    // HP ฐานที่เสียเมื่อเดินถึงฐาน
     protected double stunLeft;     // วินาทีที่ยังมึนอยู่
+    private double slowLeft;       // วินาทีที่ยังเดินช้าอยู่ (จากนักเวทน้ำแข็ง)
+    private double slowFactor = 1;
+    private Ally blocker;          // นักเวทที่ขวางอยู่ข้างหน้า (GameWorld กำหนดให้ทุกเฟรม)
     private double hitFlash;       // กระพริบขาวตอนโดนตี
 
     protected Enemy(double x, double y, double radius, double maxHp, double speed, int attack) {
@@ -32,6 +35,15 @@ abstract class Enemy extends Entity {
 
     /** สีของรูปทรงตอนไม่มีรูป */
     protected abstract Color bodyColor();
+
+    /** ทองที่ได้เมื่อฆ่าตัวนี้ */
+    abstract int bounty();
+
+    /** คูณ HP (WaveManager ใช้ทำให้ wave หลัง ๆ อึดขึ้น) */
+    void scaleHp(double factor) {
+        maxHp *= factor;
+        hp = maxHp;
+    }
 
     double hp() {
         return hp;
@@ -51,14 +63,29 @@ abstract class Enemy extends Entity {
 
     /** ความเร็วตอนนี้ (บอส override ให้เร็วขึ้นตอนเลือดน้อย) */
     protected double currentSpeed() {
-        return speed;
+        return slowLeft > 0 ? speed * slowFactor : speed;
+    }
+
+    void setBlocker(Ally ally) {
+        blocker = ally;
+    }
+
+    /** เดินช้าลง (factor 0.5 = เร็วครึ่งเดียว) */
+    void slow(double seconds, double factor) {
+        slowLeft = Math.max(slowLeft, seconds);
+        slowFactor = factor;
     }
 
     @Override
     public void update(double dt) {
         hitFlash = Math.max(0, hitFlash - dt);
+        slowLeft = Math.max(0, slowLeft - dt);
         if (stunLeft > 0) {
             stunLeft = Math.max(0, stunLeft - dt);
+            return;
+        }
+        if (blocker != null && !blocker.isDead()) {
+            blocker.takeDamage(attack * 2 * dt); // ติดอยู่: ตีนักเวทที่ขวาง แทนการเดิน
             return;
         }
         x -= currentSpeed() * dt;
@@ -92,6 +119,10 @@ abstract class Enemy extends Entity {
         if (!drawSprite(g, assets, spriteName(), radius * 2.4)) {
             drawBody(g);
         }
+        if (slowLeft > 0) {
+            g.setColor(new Color(150, 220, 255, 110));
+            g.fillOval((int) (x - radius), (int) (y - radius), (int) (radius * 2), (int) (radius * 2));
+        }
         if (hitFlash > 0) {
             g.setColor(new Color(255, 255, 255, 160));
             g.fillOval((int) (x - radius), (int) (y - radius), (int) (radius * 2), (int) (radius * 2));
@@ -103,7 +134,9 @@ abstract class Enemy extends Entity {
                 g.fillOval((int) (x + Math.cos(a) * radius) - 3, (int) (y - radius - 6 + Math.sin(a) * 4) - 3, 6, 6);
             }
         }
-        drawHpBar(g);
+        if (hp < maxHp) {
+            drawHpBar(g); // ศัตรูเป็นร้อยตัว: แสดงแถบเลือดเฉพาะตัวที่โดนแล้ว
+        }
     }
 
     /** รูปทรงพื้นฐาน: ตัวกลม + ตา (subclass override เพื่อเปลี่ยนหน้าตาได้) */

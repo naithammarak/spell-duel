@@ -33,7 +33,7 @@ public class GamePanel extends JPanel implements KeyListener {
         setFocusTraversalKeysEnabled(false); // ไม่งั้น Swing จะเอา Tab ไปใช้ย้าย focus
         addKeyListener(this);
 
-        // เมาส์: ขยับ = หันไม้กายสิทธิ์, คลิก = ล็อกเป้า
+        // เมาส์: ขยับ = หันไม้กายสิทธิ์, คลิก = ปุ่ม/วางนักเวท/ล็อกเป้า
         MouseAdapter mouse = new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -51,7 +51,7 @@ public class GamePanel extends JPanel implements KeyListener {
             public void mousePressed(MouseEvent e) {
                 requestFocusInWindow(); // คลิกแล้วคีย์บอร์ดต้องยังพิมพ์ได้
                 if (world != null && !loop.isPaused()) {
-                    world.lockTargetAt(e.getX(), e.getY());
+                    world.click(e.getX(), e.getY());
                 }
             }
         };
@@ -97,6 +97,10 @@ public class GamePanel extends JPanel implements KeyListener {
             case KeyEvent.VK_TAB -> world.cycleTarget();
             case KeyEvent.VK_LEFT -> world.turnWand(-1);
             case KeyEvent.VK_RIGHT -> world.turnWand(+1);
+            case KeyEvent.VK_1, KeyEvent.VK_NUMPAD1 -> world.selectAlly(0);
+            case KeyEvent.VK_2, KeyEvent.VK_NUMPAD2 -> world.selectAlly(1);
+            case KeyEvent.VK_3, KeyEvent.VK_NUMPAD3 -> world.selectAlly(2);
+            case KeyEvent.VK_4, KeyEvent.VK_NUMPAD4 -> world.selectAlly(3);
             default -> {
             }
         }

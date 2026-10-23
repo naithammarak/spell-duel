@@ -32,6 +32,8 @@ public final class GameWorld {
 
     public enum Status { PLAYING, WON, LOST }
 
+    static final int START_GOLD = 120;
+
     /** ผลของการกด Enter (ฝั่ง ui ไม่จำเป็นต้องใช้ แต่เทสต์ใช้) */
     public record CastResult(Outcome outcome, String spellName, Tier tier) {
         public enum Outcome { CAST, FIZZLE, ON_COOLDOWN, EMPTY }
@@ -44,6 +46,7 @@ public final class GameWorld {
     private final InputBuffer input = new InputBuffer();
     private final Base base;
     private final Wizard wizard;
+    private final ArmyGrid army;
 
     private final ArrayList<Enemy> enemies = new ArrayList<>();
     private final ArrayList<Projectile> projectiles = new ArrayList<>();
@@ -61,6 +64,9 @@ public final class GameWorld {
     private int combo;              // จำนวน PERFECT ติดกัน
     private int bestCombo;
     private double shakeTime;       // จอสั่นตอนฐานโดนตี
+    private int gold = START_GOLD;
+    private AllyType selectedAlly;  // สายนักเวทที่กำลังจะวาง (null = ไม่ได้เลือก)
+    private boolean wasInWave;
     private Status status = Status.PLAYING;
 
     /** เกมจริง: คาถา 5 อัน, 5 wave, แผนที่มาตรฐาน */
@@ -74,7 +80,19 @@ public final class GameWorld {
         this.waves = waves;
         this.map = map;
         this.base = map.createBase();
-        this.wizard = new Wizard(base.frontX() + 26, base.y());
+        this.wizard = new Wizard(base.frontX() - 30, base.y()); // ยืนบนกำแพงปราสาท
+        this.army = new ArmyGrid(laneYs(map), base.frontX() + 44);
+    }
+
+    /** เลนที่ศัตรูเดิน = แถวของจุดเกิด (เรียงจากบนลงล่าง) */
+    private static double[] laneYs(TileMap map) {
+        List<double[]> spawns = map.spawnPoints();
+        double[] ys = new double[spawns.size()];
+        for (int i = 0; i < ys.length; i++) {
+            ys[i] = spawns.get(i)[1];
+        }
+        java.util.Arrays.sort(ys);
+        return ys;
     }
 
     // ===================== input (เรียกจาก EDT) =====================
@@ -105,6 +123,9 @@ public final class GameWorld {
     public synchronized CastResult castTyped() {
         if (status != Status.PLAYING || input.isEmpty()) {
             input.clear();
+            if (status == Status.PLAYING && waves.canStartNextWave()) {
+                waves.startNextWave(); // Enter ตอนช่องพิมพ์ว่าง = เริ่ม wave
+            }
             return new CastResult(CastResult.Outcome.EMPTY, "", null);
         }
         String typed = input.text().trim();
@@ -157,8 +178,44 @@ public final class GameWorld {
         wizard.aimAt(x, y);
     }
 
-    /** คลิกเมาส์: ล็อกเป้าศัตรูที่ใกล้จุดคลิกที่สุด (ถ้าอยู่ไม่ไกลเกิน 60 px) */
-    public synchronized void lockTargetAt(double x, double y) {
+    /** กด 1–4: เลือกสายนักเวทที่จะซื้อ (กดซ้ำ = ยกเลิก) */
+    public synchronized void selectAlly(int index) {
+        AllyType[] types = AllyType.values();
+        if (index < 0 || index >= types.length) {
+            return;
+        }
+        selectedAlly = (selectedAlly == types[index]) ? null : types[index];
+    }
+
+    /** เริ่ม wave ถัดไป (ช่วงเตรียมตัวเท่านั้น) */
+    public synchronized void startWave() {
+        if (status == Status.PLAYING) {
+            waves.startNextWave();
+        }
+    }
+
+    /**
+     * คลิกเมาส์ ตามลำดับความสำคัญ:
+     * ปุ่มเริ่ม Wave → ปุ่มร้านค้า → วางนักเวทในช่องว่าง → ล็อกเป้าศัตรูใกล้จุดคลิก
+     */
+    public synchronized void click(double x, double y) {
+        if (status != Status.PLAYING) {
+            return;
+        }
+        if (waves.canStartNextWave() && Hud.startButtonContains(x, y)) {
+            waves.startNextWave();
+            return;
+        }
+        int chip = Hud.shopChipAt(x, y);
+        if (chip >= 0) {
+            selectAlly(chip);
+            return;
+        }
+        int[] slot = army.slotAt(x, y);
+        if (slot != null && selectedAlly != null) {
+            buyAlly(slot[0], slot[1]);
+            return;
+        }
         Enemy e = nearestEnemyTo(x, y);
         if (e != null && e.distanceTo(x, y) <= e.radius() + 60) {
             wizard.setManualLock(e);
@@ -179,18 +236,31 @@ public final class GameWorld {
         base.update(dt);
         wizard.update(dt);
 
-        // 1. ศัตรูเดิน ถ้าถึงฐานก็โจมตีแล้วหายไป
+        // 1. ศัตรูเดิน (ถ้ามีนักเวทขวางก็หยุดตี) ถ้าถึงฐานก็โจมตีแล้วหายไป
         for (Enemy e : enemies) {
+            e.setBlocker(army.blockerFor(e));
             e.update(dt);
             if (!e.isDead() && e.reachedBase(base.frontX())) {
                 base.takeDamage(e.attack());
                 e.kill();
                 shakeTime = 0.3;
-                burst(base.frontX(), e.y(), new Color(255, 80, 60), 14);
+                burstAt(base.frontX(), e.y(), new Color(255, 80, 60), 14);
             }
         }
 
-        // 2. กระสุนบินและชน
+        // 2. กองทัพของเรายิงศัตรูในระยะ (Polymorphism: แต่ละสาย attack ต่างกัน)
+        for (Ally a : army.allies()) {
+            a.update(dt);
+            if (a.isReady()) {
+                Enemy target = nearestEnemyWithin(a, a.range());
+                if (target != null) {
+                    a.attack(this, target);
+                    a.startCooldown();
+                }
+            }
+        }
+
+        // 3. กระสุนบินและชน
         for (Projectile p : projectiles) {
             if (p.isHoming() && p.target().isDead()) {
                 Enemy next = nearestEnemyTo(p.x(), p.y());
@@ -211,17 +281,24 @@ public final class GameWorld {
             }
         }
 
-        // 3. เอฟเฟกต์ (Polymorphism: FloatingText กับ Particle update ต่างกัน)
+        // 4. เอฟเฟกต์ (Polymorphism: FloatingText กับ Particle update ต่างกัน)
         for (Entity fx : effects) {
             fx.update(dt);
         }
 
-        // 4. ลบตัวที่ตายทีเดียว แล้วค่อยเพิ่มศัตรูใหม่
+        // 5. ลบตัวที่ตายทีเดียว แล้วค่อยเพิ่มศัตรูใหม่
         sweepDead();
         enemies.addAll(waves.update(dt, enemies.isEmpty(), map));
         announceWave();
+        if (wasInWave && !waves.inWave()) {
+            int bonus = 30 + 10 * waves.currentWave();
+            gold += bonus;
+            effects.add(new FloatingText(WIDTH / 2.0, HEIGHT / 2.0, "จบ Wave! +" + bonus + " ทอง",
+                    new Color(255, 215, 0), 32));
+        }
+        wasInWave = waves.inWave();
 
-        // 5. แพ้ / ชนะ
+        // 6. แพ้ / ชนะ
         if (base.isDestroyed()) {
             status = Status.LOST;
         } else if (waves.allWavesCleared() && enemies.isEmpty()) {
@@ -244,6 +321,7 @@ public final class GameWorld {
         g.translate(shakeX, shakeY);
         map.draw(g, assets);
         base.draw(g, assets);
+        army.draw(g, assets, selectedAlly != null);
         for (Enemy e : enemies) {
             e.draw(g, assets);
         }
@@ -293,6 +371,55 @@ public final class GameWorld {
 
     int combo() {
         return combo;
+    }
+
+    int gold() {
+        return gold;
+    }
+
+    AllyType selectedAlly() {
+        return selectedAlly;
+    }
+
+    ArmyGrid army() {
+        return army;
+    }
+
+    /** ซื้อนักเวทลงช่อง (row, col) ถ้าช่องว่างและทองพอ */
+    boolean buyAlly(int row, int col) {
+        if (selectedAlly == null || !army.isEmpty(row, col)) {
+            return false;
+        }
+        if (gold < selectedAlly.cost()) {
+            addText("ทองไม่พอ", new Color(255, 120, 120));
+            return false;
+        }
+        gold -= selectedAlly.cost();
+        Ally a = army.place(row, col, selectedAlly);
+        burstAt(a.x(), a.y(), new Color(255, 255, 180), 12);
+        return true;
+    }
+
+    /** ใช้ตอนนักเวทโจมตี (ไม่แสดงตัวเลข เพราะศัตรูเป็นร้อยจะรกจอ) */
+    void damageEnemy(Enemy e, double amount, DamageType type) {
+        if (!e.isDead()) {
+            e.takeDamage(amount, type);
+        }
+    }
+
+    /** ศัตรูที่ยังไม่ตายในรัศมี (list ใหม่ วนแล้วทำดาเมจได้ปลอดภัย) */
+    List<Enemy> enemiesNear(double x, double y, double radius) {
+        List<Enemy> list = new ArrayList<>();
+        for (Enemy e : enemies) {
+            if (!e.isDead() && e.distanceTo(x, y) <= radius + e.radius()) {
+                list.add(e);
+            }
+        }
+        return list;
+    }
+
+    void addBolt(double x1, double y1, double x2, double y2, Color color) {
+        effects.add(new Bolt(x1, y1, x2, y2, color));
     }
 
     /** โบนัสดาเมจจาก Combo: PERFECT ติดกัน 2 ครั้ง = +10% ... สูงสุด +50% */
@@ -349,6 +476,11 @@ public final class GameWorld {
         return alive;
     }
 
+    private Enemy nearestEnemyWithin(Entity from, double range) {
+        Enemy best = nearestEnemyTo(from.x(), from.y());
+        return (best != null && best.distanceTo(from) <= range) ? best : null;
+    }
+
     private Enemy nearestEnemyTo(double x, double y) {
         Enemy best = null;
         for (Enemy e : enemies) {
@@ -374,7 +506,7 @@ public final class GameWorld {
 
     /** ใช้ผลคาถากับตัวที่โดน หรือทุกตัวในรัศมีระเบิด */
     private void resolveImpact(Projectile p, Enemy struck) {
-        burst(p.x(), p.y(), p.spell().color(), 8 + (int) (8 * p.tier().multiplier()));
+        burstAt(p.x(), p.y(), p.spell().color(), 8 + (int) (8 * p.tier().multiplier()));
         if (p.splashRadius() <= 0) {
             applySpell(p, struck);
             return;
@@ -384,7 +516,7 @@ public final class GameWorld {
                 applySpell(p, e);
             }
         }
-        burst(p.x(), p.y(), new Color(255, 220, 120), 24); // ระเบิดใหญ่
+        burstAt(p.x(), p.y(), new Color(255, 220, 120), 24); // ระเบิดใหญ่
     }
 
     /** ใช้ผลคาถากับศัตรู 1 ตัว แล้วแสดงตัวเลขดาเมจที่ทำได้จริง */
@@ -399,7 +531,7 @@ public final class GameWorld {
     }
 
     /** เศษประกายพุ่งออกรอบจุด (x, y) */
-    private void burst(double x, double y, Color color, int count) {
+    void burstAt(double x, double y, Color color, int count) {
         for (int i = 0; i < count; i++) {
             double angle = fxRandom.nextDouble() * Math.PI * 2;
             double speed = 60 + fxRandom.nextDouble() * 160;
@@ -421,9 +553,11 @@ public final class GameWorld {
         for (Enemy e : enemies) {
             if (e.isDead() && e.hp() <= 0) {
                 enemiesDefeated++;
-                burst(e.x(), e.y(), e.bodyColor(), 20); // ศัตรูแตกกระจาย
+                gold += e.bounty();
+                burstAt(e.x(), e.y(), e.bodyColor(), 8); // ศัตรูแตกกระจาย
             }
         }
+        army.sweep();
         enemies.removeIf(Entity::isDead);
         projectiles.removeIf(Entity::isDead);
         effects.removeIf(Entity::isDead);

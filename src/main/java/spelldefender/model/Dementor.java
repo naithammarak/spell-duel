@@ -15,7 +15,7 @@ class Dementor extends Enemy {
     static final double RESISTED_FRACTION = 0.2;
 
     Dementor(double x, double y) {
-        super(x, y, 16, 45, 35, 10);
+        super(x, y, 15, 40, 34, 6);
     }
 
     @Override
@@ -43,6 +43,11 @@ class Dementor extends Enemy {
         g.setColor(new Color(150, 200, 255));
         g.fillOval((int) x - 7, (int) y - 4, 4, 4);
         g.fillOval((int) x - 1, (int) y - 4, 4, 4);
+    }
+
+    @Override
+    int bounty() {
+        return 5;
     }
 
     @Override

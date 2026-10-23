@@ -10,7 +10,7 @@ import java.awt.Graphics2D;
 class DarkWizardBoss extends Enemy {
 
     DarkWizardBoss(double x, double y) {
-        super(x, y, 28, 300, 15, 40);
+        super(x, y, 28, 800, 16, 50);
     }
 
     boolean isEnraged() {
@@ -19,7 +19,7 @@ class DarkWizardBoss extends Enemy {
 
     @Override
     protected double currentSpeed() {
-        return isEnraged() ? speed * 1.6 : speed;
+        return isEnraged() ? super.currentSpeed() * 1.6 : super.currentSpeed();
     }
 
     @Override
@@ -30,6 +30,11 @@ class DarkWizardBoss extends Enemy {
     @Override
     void stun(double seconds) {
         super.stun(seconds / 2);
+    }
+
+    @Override
+    int bounty() {
+        return 100;
     }
 
     @Override

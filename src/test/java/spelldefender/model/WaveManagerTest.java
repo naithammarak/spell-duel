@@ -25,9 +25,18 @@ class WaveManagerTest {
     }
 
     @Test
+    void waitsForPlayerBeforeFirstWave() {
+        WaveManager waves = new WaveManager(new int[][] {{3, 0, 0, 0}}, new Random(1));
+        assertTrue(spawnAll(waves, 60).isEmpty());
+        assertEquals(0, waves.currentWave());
+        assertTrue(waves.canStartNextWave());
+    }
+
+    @Test
     void spawnsExactlyWhatTheTableSays() {
         WaveManager waves = new WaveManager(new int[][] {{3, 2, 1, 0}}, new Random(1));
-        List<Enemy> spawned = spawnAll(waves, 30);
+        waves.startNextWave();
+        List<Enemy> spawned = spawnAll(waves, WaveManager.SPAWN_SECONDS + 5);
         assertEquals(3, spawned.stream().filter(e -> e instanceof Goblin).count());
         assertEquals(2, spawned.stream().filter(e -> e instanceof Troll).count());
         assertEquals(1, spawned.stream().filter(e -> e instanceof Dementor).count());
@@ -37,27 +46,34 @@ class WaveManagerTest {
     @Test
     void bossComesLast() {
         WaveManager waves = new WaveManager(new int[][] {{4, 1, 1, 1}}, new Random(2));
-        List<Enemy> spawned = spawnAll(waves, 30);
+        waves.startNextWave();
+        List<Enemy> spawned = spawnAll(waves, WaveManager.SPAWN_SECONDS + 5);
         assertInstanceOf(DarkWizardBoss.class, spawned.get(spawned.size() - 1));
     }
 
     @Test
-    void standardGameHasFiveWavesWithBossInLast() {
+    void standardGameHasFiveHordeWavesWithOneBoss() {
         WaveManager waves = WaveManager.standard(new Random(3));
         assertEquals(5, waves.totalWaves());
-        List<Enemy> spawned = spawnAll(waves, 300);
+        List<Enemy> spawned = new ArrayList<>();
+        for (int w = 0; w < 5; w++) {
+            waves.startNextWave();
+            spawned.addAll(spawnAll(waves, WaveManager.SPAWN_SECONDS + 5));
+        }
         assertEquals(1, spawned.stream().filter(e -> e instanceof DarkWizardBoss).count());
-        assertEquals(5, waves.currentWave());
+        assertTrue(spawned.size() > 500, "horde size " + spawned.size());
+        assertTrue(waves.allWavesCleared());
     }
 
     @Test
-    void nextWaveWaitsUntilFieldIsClear() {
+    void waveDoesNotEndWhileEnemiesRemain() {
         WaveManager waves = new WaveManager(new int[][] {{1, 0, 0, 0}, {1, 0, 0, 0}}, new Random(4));
-        for (int i = 0; i < 200; i++) {
+        waves.startNextWave();
+        for (int i = 0; i < 2000; i++) {
             waves.update(0.05, false, map); // ยังมีศัตรูอยู่ตลอด
         }
-        assertEquals(1, waves.currentWave());
-        assertFalse(waves.allWavesCleared());
+        assertTrue(waves.inWave());
+        assertFalse(waves.canStartNextWave());
     }
 
     @Test

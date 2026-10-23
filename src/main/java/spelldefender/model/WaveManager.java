@@ -9,8 +9,9 @@ import java.util.Random;
  * ควบคุม wave ด้วยตาราง int[][] waveTable
  *   แถว   = wave ที่เท่าไหร่
  *   คอลัมน์ = จำนวนศัตรูแต่ละชนิด: {Goblin, Troll, Dementor, Boss}
- * ศัตรูในแต่ละ wave ออกทีละตัวแบบสุ่มลำดับ บอสออกตัวสุดท้ายเสมอ
- * wave ถัดไปเริ่มเมื่อศัตรูของ wave ก่อนตายหมดแล้ว
+ *
+ * ระหว่าง wave เกมจะรอให้ผู้เล่นกดเริ่ม (startNextWave) เพื่อให้มีเวลาซื้อกองทัพ
+ * ในแต่ละ wave ศัตรูทั้งหมดจะทยอยออกมาภายใน SPAWN_SECONDS วินาที บอสออกตัวสุดท้ายเสมอ
  */
 class WaveManager {
 
@@ -20,24 +21,25 @@ class WaveManager {
     static final int BOSS = 3;
     static final int ENEMY_TYPES = 4;
 
-    static final double SPAWN_INTERVAL = 2.5;  // วินาทีระหว่างศัตรูแต่ละตัว
-    static final double BREAK_SECONDS = 3.0;   // พักก่อนเริ่ม wave ใหม่
+    static final double SPAWN_SECONDS = 30; // ศัตรูทั้ง wave ออกมาครบภายในเวลานี้
+    static final double HP_GROWTH = 0.4;    // wave ถัดไปศัตรูอึดขึ้น 40% (ไม่ให้กองทัพอย่างเดียวชนะได้)
 
     private static final int[][] STANDARD_WAVES = {
             // Goblin, Troll, Dementor, Boss
-            {6, 0, 0, 0},
-            {8, 2, 0, 0},
-            {7, 2, 2, 0},
-            {8, 3, 3, 0},
-            {5, 2, 3, 1},
+            {45, 0, 0, 0},
+            {80, 6, 0, 0},
+            {115, 14, 10, 0},
+            {160, 24, 16, 0},
+            {210, 34, 24, 1},
     };
 
     private final int[][] waveTable;
     private final Random rng;
     private final ArrayList<Integer> spawnQueue = new ArrayList<>();
-    private int waveIndex = -1;     // wave ที่กำลังเล่น (-1 = ยังไม่เริ่ม)
-    private double timer = BREAK_SECONDS;
-    private boolean betweenWaves = true;
+    private int waveIndex = -1;     // wave ล่าสุดที่เริ่มไปแล้ว (-1 = ยังไม่เริ่ม)
+    private boolean inWave;         // กำลังสู้อยู่ (false = ช่วงเตรียมตัว)
+    private double spawnInterval;
+    private double timer;
 
     WaveManager(int[][] waveTable, Random rng) {
         for (int[] row : waveTable) {
@@ -67,54 +69,21 @@ class WaveManager {
         return waveIndex + 1;
     }
 
-    boolean isBetweenWaves() {
-        return betweenWaves;
+    boolean inWave() {
+        return inWave;
     }
 
-    double breakTimeLeft() {
-        return betweenWaves ? timer : 0;
+    /** เริ่ม wave ถัดไปได้ไหม (ต้องอยู่ช่วงเตรียมตัว และยังมี wave เหลือ) */
+    boolean canStartNextWave() {
+        return !inWave && waveIndex < waveTable.length - 1;
     }
 
-    /** ผ่านครบทุก wave แล้ว (โหมด idle ไม่มีวันจบ) */
-    boolean allWavesCleared() {
-        return waveTable.length > 0 && waveIndex >= waveTable.length - 1 && spawnQueue.isEmpty() && !betweenWaves;
-    }
-
-    /**
-     * เดินเวลา แล้วคืนศัตรูที่เกิดใหม่ในเฟรมนี้ (GameWorld เอาไปใส่ list เอง)
-     * @param fieldEmpty ตอนนี้ไม่มีศัตรูเหลือบนแผนที่
-     */
-    List<Enemy> update(double dt, boolean fieldEmpty, TileMap map) {
-        List<Enemy> spawned = new ArrayList<>();
-        if (waveTable.length == 0) {
-            return spawned;
+    void startNextWave() {
+        if (!canStartNextWave()) {
+            return;
         }
-        timer -= dt;
-
-        if (betweenWaves) {
-            if (timer <= 0) {
-                startNextWave();
-            }
-            return spawned;
-        }
-
-        if (!spawnQueue.isEmpty()) {
-            if (timer <= 0) {
-                spawned.add(create(spawnQueue.remove(0), map));
-                timer = SPAWN_INTERVAL;
-            }
-        } else if (fieldEmpty && waveIndex < waveTable.length - 1) {
-            // wave นี้จบแล้ว พักก่อนเริ่ม wave ถัดไป
-            betweenWaves = true;
-            timer = BREAK_SECONDS;
-        }
-        return spawned;
-    }
-
-    private void startNextWave() {
         waveIndex++;
-        betweenWaves = false;
-        timer = 0;
+        inWave = true;
         int[] counts = waveTable[waveIndex];
         for (int type = 0; type < ENEMY_TYPES; type++) {
             if (type == BOSS) {
@@ -128,18 +97,51 @@ class WaveManager {
         for (int i = 0; i < counts[BOSS]; i++) {
             spawnQueue.add(BOSS); // บอสออกท้ายสุด
         }
+        spawnInterval = SPAWN_SECONDS / Math.max(1, spawnQueue.size());
+        timer = 0;
     }
 
-    /** แปลงเลขคอลัมน์เป็นศัตรูจริง ที่จุดเกิดแบบสุ่ม */
+    /** ผ่านครบทุก wave แล้ว (โหมด idle ไม่มีวันจบ) */
+    boolean allWavesCleared() {
+        return waveTable.length > 0 && waveIndex == waveTable.length - 1 && !inWave;
+    }
+
+    /**
+     * เดินเวลา แล้วคืนศัตรูที่เกิดใหม่ในเฟรมนี้ (GameWorld เอาไปใส่ list เอง)
+     * @param fieldEmpty ตอนนี้ไม่มีศัตรูเหลือบนแผนที่ ถ้าปล่อยครบแล้วด้วย = จบ wave
+     */
+    List<Enemy> update(double dt, boolean fieldEmpty, TileMap map) {
+        List<Enemy> spawned = new ArrayList<>();
+        if (!inWave) {
+            return spawned;
+        }
+        timer -= dt;
+        while (timer <= 0 && !spawnQueue.isEmpty()) { // ฝูงใหญ่: เฟรมเดียวอาจออกหลายตัว
+            spawned.add(create(spawnQueue.remove(0), map));
+            timer += spawnInterval;
+        }
+        if (spawnQueue.isEmpty() && fieldEmpty && spawned.isEmpty()) {
+            inWave = false; // จบ wave กลับไปช่วงเตรียมตัว
+        }
+        return spawned;
+    }
+
+    /** แปลงเลขคอลัมน์เป็นศัตรูจริง ที่จุดเกิดแบบสุ่ม (ขยับนิดหน่อยให้ดูเป็นฝูง) */
     private Enemy create(int type, TileMap map) {
         List<double[]> points = map.spawnPoints();
         double[] p = points.get(rng.nextInt(points.size()));
-        return switch (type) {
-            case GOBLIN -> new Goblin(p[0], p[1]);
-            case TROLL -> new Troll(p[0], p[1]);
-            case DEMENTOR -> new Dementor(p[0], p[1]);
-            case BOSS -> new DarkWizardBoss(p[0], p[1]);
+        double x = p[0] + rng.nextDouble() * 30;
+        double y = p[1] + (rng.nextDouble() - 0.5) * 30;
+        Enemy e = switch (type) {
+            case GOBLIN -> new Goblin(x, y);
+            case TROLL -> new Troll(x, y);
+            case DEMENTOR -> new Dementor(x, y);
+            case BOSS -> new DarkWizardBoss(x, y);
             default -> throw new IllegalArgumentException("unknown enemy type " + type);
         };
+        if (type != BOSS) {
+            e.scaleHp(1 + HP_GROWTH * waveIndex);
+        }
+        return e;
     }
 }

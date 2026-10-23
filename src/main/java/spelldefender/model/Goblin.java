@@ -6,7 +6,12 @@ import java.awt.Color;
 class Goblin extends Enemy {
 
     Goblin(double x, double y) {
-        super(x, y, 14, 20, 40, 5);
+        super(x, y, 12, 16, 42, 2);
+    }
+
+    @Override
+    int bounty() {
+        return 2;
     }
 
     @Override
