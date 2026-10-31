@@ -18,13 +18,13 @@
   |---|---|---|
   | ⚔ **Attack** | bombarda maxima, petrificus totalus, incendio maxima, confringo maxima, sectumsempra | ดาเมจสูง ถ้าโดนก่อน cast bar ของอีกฝ่ายเต็ม คาถาของอีกฝ่ายจะถูก**ตัด** |
   | 🛡 **Shield** | protego maxima, protego totalum, protego horribilis, salvio hexia, cave inimicum | กันการโจมตีครั้งถัดไป (นาน 3 วินาที) และ**สะท้อน**กลับใส่คนตีเสมอ ยิ่งร่ายแม่น ลูกสะท้อนยิ่งแรง |
-  | ✋ **Interrupt** | expelliarmus, flipendo, rictusempra, levicorpus, impedimenta | คาถาสั้น ดาเมจน้อย **ทำลายโล่** และ**ตัด**ได้เฉพาะตอนอีกฝ่ายกำลังร่าย Shield (ตัด Attack ไม่ได้) |
+  | ✋ **Interrupt** | expelliarmus, impedimenta, depulso maxima, reducto maxima, diffindo maxima | คาถายาวปานกลาง ดาเมจน้อย **ทำลายโล่** และ**ตัด**ได้เฉพาะตอนอีกฝ่ายกำลังร่าย Shield (ตัด Attack ไม่ได้) |
 
   **ต้องแม่นถึงจะตัดได้:** การตัด cast ต้องได้ GREAT ขึ้นไป ถ้าได้ GOOD/WEAK ทำได้แค่ดาเมจ (กันการพิมพ์ครึ่งคำรัว ๆ)
   **วงจรเป่ายิ้งฉุบ:** Attack ชนะ Interrupt / Interrupt ชนะ Shield / Shield ชนะ Attack
 - **ระบบความแม่นยำ** (ใช้ package `typing` เดิม)
   1. หาการ์ดที่ใกล้กับคำที่พิมพ์ที่สุดด้วย Levenshtein
-  2. แบ่งเป็น Tier: PERFECT ×1.25 · Great ×1.0 · Good ×0.6 · Weak ×0.3 · Fizzle ×0
+  2. แบ่งเป็น Tier: PERFECT ×1.25 · Great ×1.0 (แม่น ≥ 85%) · Good ×0.6 (≥ 75%) · Weak ×0.3 (≥ 50%) · Fizzle ×0 (ต่ำกว่า 50% เช่นพิมพ์ไม่ถึงครึ่งคำ)
   3. PERFECT ต้องพิมพ์ถูกหมด และเสร็จภายใน `parTime = length × k + 1s`
   4. Fizzle ไม่เกิดผลอะไร และการ์ดไม่ถูกใช้
 - **ฝั่งผู้เล่น "กำลังร่าย"** ตลอดเวลาที่ช่องพิมพ์ไม่ว่าง ถ้าโดน Attack หรือ Interrupt ระหว่างนั้น ข้อความที่พิมพ์ค้างไว้จะหาย (โดนตัด)
@@ -59,7 +59,7 @@
 
 | ส่วน | Class หลัก |
 |---|---|
-| การพิมพ์ (เก็บของเดิม) | `Levenshtein`, `Tier`, `AccuracyGrader`, `InputBuffer` |
+| การพิมพ์ (ของเดิม ปรับแค่เกณฑ์ Tier) | `Levenshtein`, `Tier`, `AccuracyGrader`, `InputBuffer` |
 | การ์ด | `enum SpellRole`, `Incantation`, `SpellDeck` (`String[][]` ชุดคาถา) |
 | นักเวท | `abstract Duelist` → `PlayerWizard`, `BotWizard` · `Cast` (cast bar) · `Shield` |
 | สมองบอท | `interface BotBrain` → `ApprenticeBrain`, `AurorBrain`, `DarkWizardBrain` · `BotProfile` (`int[][]` stat) |

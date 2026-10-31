@@ -26,13 +26,13 @@ class AccuracyGraderTest {
 
     @Test
     void tiersFollowAccuracyCutoffs() {
-        // 20 ตัวอักษร: ผิด 3 = 0.85, ผิด 8 = 0.60, ผิด 14 = 0.30
+        // 20 ตัวอักษร: ผิด 3 = 0.85, ผิด 5 = 0.75, ผิด 10 = 0.50
         assertEquals(Tier.GREAT, grader.grade(3, 20, 0));
         assertEquals(Tier.GOOD, grader.grade(4, 20, 0));
-        assertEquals(Tier.GOOD, grader.grade(8, 20, 0));
-        assertEquals(Tier.WEAK, grader.grade(9, 20, 0));
-        assertEquals(Tier.WEAK, grader.grade(14, 20, 0));
-        assertEquals(Tier.FIZZLE, grader.grade(15, 20, 0));
+        assertEquals(Tier.GOOD, grader.grade(5, 20, 0));
+        assertEquals(Tier.WEAK, grader.grade(6, 20, 0));
+        assertEquals(Tier.WEAK, grader.grade(10, 20, 0));
+        assertEquals(Tier.FIZZLE, grader.grade(11, 20, 0));
     }
 
     @Test

@@ -4,7 +4,7 @@ import java.awt.Color;
 
 /**
  * หน้าที่ของคาถา 3 แบบ (วงจรเป่ายิ้งฉุบ):
- * Attack แพ้ Shield · Shield แพ้ Interrupt · Interrupt เร็วแต่เบา
+ * Attack ชนะ Interrupt · Interrupt ชนะ Shield · Shield ชนะ Attack
  */
 enum SpellRole {
     ATTACK("Attack", 20, 1000, new Color(255, 110, 60)),

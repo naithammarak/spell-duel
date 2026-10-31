@@ -7,8 +7,8 @@ package spellduel.typing;
 public enum Tier {
     PERFECT("PERFECT!", 1.25, 1.00),
     GREAT("Great", 1.00, 0.85),
-    GOOD("Good", 0.60, 0.60),
-    WEAK("Weak", 0.30, 0.30),
+    GOOD("Good", 0.60, 0.75),
+    WEAK("Weak", 0.30, 0.50),
     FIZZLE("Fizzle!", 0.00, 0.00);
 
     private final String label;

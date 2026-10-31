@@ -20,7 +20,7 @@ dependency ชี้ไปทางเดียว ห้ามย้อนก�
 
 | Package | มีอะไร | กฎ |
 |---|---|---|
-| `spellduel.typing` | `Levenshtein`, `Tier`, `AccuracyGrader`, `InputBuffer` (**ของเดิม** แค่เปลี่ยนชื่อ package) | logic ล้วน ใช้แค่ JDK |
+| `spellduel.typing` | `Levenshtein`, `Tier`, `AccuracyGrader`, `InputBuffer` (**ของเดิม** เปลี่ยนชื่อ package และเกณฑ์ `Tier`: Good ≥ 75%, Weak ≥ 50%) | logic ล้วน ใช้แค่ JDK |
 | `spellduel.model` | `GameWorld`, นักเวท, การ์ด, สมองบอท, projectile, effect, `Hud`, `Assets`, `GameStats` | ใช้ `java.awt` ได้ แต่**ห้าม import `javax.swing`** (`ArchitectureTest` ตรวจ) · ทุก class เป็น package-private ยกเว้น `GameWorld`, `GameStats`, `Assets` |
 | `spellduel.ui` | `GameWindow`, `MenuPanel`, `GamePanel`, `ResultPanel`, `GameLoop` | Swing อยู่ที่นี่ที่เดียว คุยกับ model ผ่าน `GameWorld` เท่านั้น |
 | `spellduel` | `Main` | เปิดหน้าต่างผ่าน `SwingUtilities.invokeLater` |
@@ -315,7 +315,7 @@ classDiagram
 
 | Test class | ตรวจอะไร | วัน |
 |---|---|---|
-| `LevenshteinTest`, `AccuracyGraderTest`, `InputBufferTest`, `ArchitectureTest` | ของเดิม (เปลี่ยนแค่ package) | D1 |
+| `LevenshteinTest`, `AccuracyGraderTest`, `InputBufferTest`, `ArchitectureTest` | ของเดิม (เปลี่ยน package และเกณฑ์ Tier) | D1 |
 | `SpellDeckTest` | match ได้การ์ดที่ถูก, consume แล้วได้คำใหม่ที่ไม่ซ้ำ, แต่ละแถวใน POOLS มีอย่างน้อย 3 คำ, `guessRole` คืน null ถ้าพิมพ์ไม่ถึง 3 ตัว | D2 |
 | `GameWorldTest` | ทุกแถวใน §5.3 รวมถึงสะท้อน, ทำลายโล่, Fizzle แล้วการ์ดยังอยู่, โดนตีแล้ว buffer ถูกล้าง, WON/LOST | D2 |
 | `BotBrainTest` | Apprentice ร่ายแต่ ATTACK, Auror ตั้งโล่เมื่อ intent = ATTACK, Dark Wizard เปลี่ยนหน้าที่ (seed คงที่) | D3 |

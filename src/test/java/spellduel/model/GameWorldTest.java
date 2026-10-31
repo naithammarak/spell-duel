@@ -182,6 +182,16 @@ class GameWorldTest {
     }
 
     @Test
+    void lessThanHalfAWordFizzles() {
+        GameWorld w = apprenticeWorld();
+        Incantation[] before = w.deck().hand();
+        String word = before[SpellRole.ATTACK.ordinal()].text();
+        type(w, word.substring(0, word.length() / 2 - 1));
+        assertEquals(Tier.FIZZLE, w.castTyped().tier());
+        assertArrayEquals(before, w.deck().hand());
+    }
+
+    @Test
     void getHitClearsTypedText() {
         GameWorld w = apprenticeWorld();
         type(w, "bom");

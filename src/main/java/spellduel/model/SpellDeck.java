@@ -12,7 +12,7 @@ class SpellDeck {
     static final String[][] POOLS = {
             {"bombarda maxima", "petrificus totalus", "incendio maxima", "confringo maxima", "sectumsempra"},
             {"protego maxima", "protego totalum", "protego horribilis", "salvio hexia", "cave inimicum"},
-            {"expelliarmus", "flipendo", "rictusempra", "levicorpus", "impedimenta"},
+            {"expelliarmus", "impedimenta", "depulso maxima", "reducto maxima", "diffindo maxima"},
     };
 
     /** ต้องพิมพ์อย่างน้อยกี่ตัวก่อนจะเดาว่าผู้เล่นกำลังพิมพ์หน้าที่อะไร */
