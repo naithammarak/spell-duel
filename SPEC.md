@@ -1,112 +1,124 @@
-# SPEC: Spell Defender
+# SPEC: Spell Duel
+
+> เปลี่ยนแนวเมื่อ 27 ต.ค. 2026 จาก tower defense (เก็บไว้ที่ tag `td-prototype`) และโหมดกองทัพ (tag `army-prototype`, ดู `SPEC-ARMY.md`) มาเป็นเกมดวลเวท 1v1
+> เหตุผล: prototype เดิมพิมพ์คาถาเดิมซ้ำจนเบื่อ ศัตรูเยอะจนมองจอไม่ทัน ไม่มีการตัดสินใจ และระบบ (เงิน/ซื้อพ่อมด/grid) ซับซ้อนเกินไป
 
 ## 1. Goal
-เกม 2D pixel top-down แนว tower defense ผู้เล่นเป็นพ่อมดยืนป้องกันฐาน ร่ายคาถาสไตล์ Harry Potter ด้วยการ **พิมพ์**
-ยิ่งพิมพ์ถูกและเร็ว คาถายิ่งแรง ถ้าพิมพ์ผิดมาก คาถาจะอ่อนลงหรือไม่ออกเลย (Fizzle)
-เป็น mini project วิชา OOP (ทำคนเดียว) ใช้ Java 17 + Swing ต้องใช้ทุกหัวข้อที่เรียนอย่างมีเหตุผล และอธิบายได้ทุก class ตอนพรีเซนต์
+เกม 2D pixel มุมมองด้านข้าง ผู้เล่น (ซ้าย) ดวลเวทกับบอท (ขวา) แบบ real-time โดยร่ายคาถาด้วยการ**พิมพ์**
+หัวใจของเกมคือ**อ่านทางบอท แล้วเลือกคาถาให้ถูกจังหวะ** (เหมือนเป่ายิ้งฉุบ) และ**ร่ายให้เสร็จก่อน** ยิ่งพิมพ์ถูกและเร็ว คาถายิ่งแรง
+เป็น mini project วิชา OOP (ทำคนเดียว) ใช้ Java 17 + Swing ต้องใช้ทุกหัวข้อที่เรียน และอธิบายได้ทุก class
 
 ## 2. Features
 ### Must-have
-- **การพิมพ์**: A–Z/Space พิมพ์, Backspace ลบ, Enter ร่าย, Esc หยุดเกม
-- **คาถา 5 อัน** แต่ละอันมี cooldown ของตัวเอง และเล็งคนละแบบ
+- **การ์ดคาถา 3 ใบ** บนจอ ใบละ 1 หน้าที่ และแต่ละใบแสดงคาถา (ยาว) ที่ต้องพิมพ์ในตอนนั้น
+  - ใช้การ์ดใบไหนไปแล้ว ใบนั้นจะสุ่มคาถาใหม่จากชุดของหน้าที่เดียวกัน (ไม่ซ้ำกับคำเดิม) ผู้เล่นจะได้ไม่ต้องพิมพ์คำเดิมซ้ำ
+  - พิมพ์ A–Z/Space, Backspace ลบ, Enter ร่าย, Esc หยุดเกม
 
-  | คาถา | การเล็ง | ผล |
+  | หน้าที่ | ชุดคาถา (5 บทต่อหน้าที่) | ผล |
   |---|---|---|
-  | `stupefy` | Lock-on | ดาเมจน้อย + stun |
-  | `incendio` | Directional | ลูกไฟพุ่งตามทิศ ระเบิดโดนหลายตัว (AoE) |
-  | `protego` | Self | โล่ป้องกันฐาน ดูดซับดาเมจ |
-  | `expelliarmus` | Lock-on | ดาเมจกลาง + knockback |
-  | `expecto patronum` | Lock-on | แรงมากกับ Dementor, cooldown ยาว |
-- **การเล็ง**: พ่อมดยืนนิ่งที่ฐาน ใช้ ←/→ หมุนทิศไม้กายสิทธิ์ (สำหรับ Directional) ส่วน Tab ใช้สลับเป้า Lock-on (ค่าเริ่มต้นคือตัวที่ใกล้ฐานที่สุด) และวาด marker บนตัวที่ถูกล็อก
-- **ระบบความแม่นยำ** (หัวใจของเกม)
-  1. หาคาถาที่ใกล้กับคำที่พิมพ์ที่สุดด้วย **Levenshtein distance** (DP บน 2D array)
-  2. คิด `accuracy = 1 - distance / spellLength` แล้วแบ่งระดับ: PERFECT ×1.25 · Great ×1.0 · Good ×0.6 · Weak ×0.3 · Fizzle ×0 (ค่าตัดแต่ละระดับไว้ปรับตอน balance)
-  3. **PERFECT** = พิมพ์ถูกหมด **และ** เสร็จภายใน `parTime = spellLength × k + 1s` (เริ่มจับเวลาตั้งแต่กดตัวแรก) ถ้าถูกหมดแต่ช้ากว่านั้นได้แค่ Great
-  4. แสดงผลระดับลอยขึ้นบนจอ (เช่น "Weak!") และขนาด/ความสว่างของ projectile เปลี่ยนตามระดับ
-- **ศัตรู 3 แบบ + boss**: Goblin (เร็ว, HP น้อย), Troll (ช้า, HP เยอะ), Dementor (ดาเมจจากคาถาอื่นลดลงมาก), Boss: Dark Wizard (wave 5)
-- **5 wave**: ฐานมี HP ถ้าศัตรูเดินถึงฐานจะเสีย HP ฐาน HP หมดคือแพ้ ชนะ boss ใน wave 5 คือชนะ
-- **หน้าจอ**: Menu (Start / How to play / Exit) → Game (HUD: HP ฐาน, wave, cooldown, ช่องพิมพ์) → Result (Win/Lose + สถิติ accuracy) และหน้า Pause
-- **1 map** ใช้ tilemap + sprite จาก free asset pack (itch.io / OpenGameArt) ใส่ credit ใน README/รายงาน
-- **Unit test** เฉพาะ logic ล้วนด้วย **JUnit 5** (library นอกตัวแรกที่ได้ลองใช้)
-- GitHub repo + GitHub Actions (build + test) + Release `SpellDefender.jar`
+  | ⚔ **Attack** | bombarda maxima, petrificus totalus, incendio maxima, confringo maxima, sectumsempra | ดาเมจสูง ถ้าโดนก่อน cast bar ของอีกฝ่ายเต็ม คาถาของอีกฝ่ายจะถูก**ตัด** |
+  | 🛡 **Shield** | protego maxima, protego totalum, protego horribilis, salvio hexia, cave inimicum | กันการโจมตีครั้งถัดไป (นาน 3 วินาที) และ**สะท้อน**กลับใส่คนตีเสมอ ยิ่งร่ายแม่น ลูกสะท้อนยิ่งแรง |
+  | ✋ **Interrupt** | expelliarmus, flipendo, rictusempra, levicorpus, impedimenta | คาถาสั้น ดาเมจน้อย **ทำลายโล่** และ**ตัด**ได้เฉพาะตอนอีกฝ่ายกำลังร่าย Shield (ตัด Attack ไม่ได้) |
 
-### Nice-to-have (ทำเมื่อ must-have เสร็จก่อน 28 ต.ค.)
-- Sound effect / BGM (`javax.sound.sampled`)
-- Sprite animation (walk / cast / hit) และ particle ตอนระเบิด
-- ให้พ่อมดเดินได้
-- บันทึก high score / สถิติลงไฟล์
-- ลองใช้ library เพิ่ม เช่น FlatLaf (ทำให้ปุ่มเมนูดูทันสมัย) หรือ Gson (โหลด wave/spell config จาก JSON)
+  **ต้องแม่นถึงจะตัดได้:** การตัด cast ต้องได้ GREAT ขึ้นไป ถ้าได้ GOOD/WEAK ทำได้แค่ดาเมจ (กันการพิมพ์ครึ่งคำรัว ๆ)
+  **วงจรเป่ายิ้งฉุบ:** Attack ชนะ Interrupt / Interrupt ชนะ Shield / Shield ชนะ Attack
+- **ระบบความแม่นยำ** (ใช้ package `typing` เดิม)
+  1. หาการ์ดที่ใกล้กับคำที่พิมพ์ที่สุดด้วย Levenshtein
+  2. แบ่งเป็น Tier: PERFECT ×1.25 · Great ×1.0 · Good ×0.6 · Weak ×0.3 · Fizzle ×0
+  3. PERFECT ต้องพิมพ์ถูกหมด และเสร็จภายใน `parTime = length × k + 1s`
+  4. Fizzle ไม่เกิดผลอะไร และการ์ดไม่ถูกใช้
+- **ฝั่งผู้เล่น "กำลังร่าย"** ตลอดเวลาที่ช่องพิมพ์ไม่ว่าง ถ้าโดน Attack หรือ Interrupt ระหว่างนั้น ข้อความที่พิมพ์ค้างไว้จะหาย (โดนตัด)
+- **ฝั่งบอทมี cast bar** บอกหน้าที่ของคาถาที่กำลังร่าย และเวลาที่เหลือ เวลาร่ายคิดจาก `ความยาวคาถา / ความเร็วพิมพ์ของบอท` ส่วน Tier ของบอทสุ่มจากค่าความแม่นยำของบอทตัวนั้น
+- **บอท 3 ตัว ไต่ทีละตัว** นิสัยและความเร็วต่างกัน
+  1. **Apprentice**: พิมพ์ช้า โจมตีอย่างเดียว มีช่วงพักระหว่างร่าย ใช้เป็นตัวสอนเล่น
+  2. **Auror**: ถ้าเห็นผู้เล่นเริ่มพิมพ์คาถา Attack จะตั้งโล่ และถ้าผู้เล่นมีโล่อยู่ จะใช้ Interrupt
+  3. **Dark Wizard** (boss): เร็ว และบางครั้ง**หลอก**ด้วยการเปลี่ยนคาถากลางทาง (cast bar เปลี่ยนหน้าที่ตอนร่ายไปได้ครึ่งทาง)
+- **แพ้** (HP ผู้เล่นหมด) → Retry ที่บอทตัวเดิม · **ชนะ** → ไปบอทตัวถัดไป · ชนะ Dark Wizard → จบเกม
+- **หน้าจอ**: Menu (Start / How to play / Exit) → Duel → Result (Next / Retry / Menu) และมีหน้า Pause
+  - หน้าจอ Duel มี HP bar ของทั้งสองฝั่ง, cast bar ของบอท, การ์ด 3 ใบ, ช่องพิมพ์ และ Tier ลอยขึ้นมาบนจอ
+- **Unit test** เฉพาะ logic ด้วย JUnit 5
+- GitHub repo + Actions + Release `SpellDuel.jar`
+
+### Nice-to-have (ทำเมื่อ must-have เสร็จก่อนเย็น 30 ต.ค.)
+- Sprite animation ตอนร่าย/โดนตี, particle, จอสั่น
+- Sound effect (`javax.sound.sampled`)
+- Combo: PERFECT ติดกันได้ดาเมจเพิ่ม
+- Beam Clash: ถ้า Attack ของทั้งสองฝั่งชนกันกลางจอ ให้แข่งพิมพ์คำสุ่มเพื่อดันลำแสง
 
 ### Out of scope
-หลาย map, multiplayer, ระบบอัปเกรด/shop, level editor, รองรับแป้นภาษาไทย (แสดงคำเตือนให้เปลี่ยนเป็นแป้นอังกฤษแทน)
+- ผู้เล่น 2 คน หรือเล่นผ่านเน็ต
+- ระบบเงิน, อัปเกรด, cooldown, mana (การ์ดที่สุ่มใหม่ทุกครั้งพอแล้ว)
+- หลายฉาก
+- รองรับแป้นภาษาไทย (จะแสดงคำเตือนแทน)
 
 ## 3. Design overview
-แยก **logic (model)** ออกจาก **Swing (view)** เพื่อให้ test ได้และอธิบาย OOP ได้ชัด
+รายละเอียดอยู่ใน `DESIGN.md`
+- Package `spellduel.ui → model → typing`
+- `GameWorld` เป็นห้องครัวที่เก็บกฎทั้งหมดของเกม ส่วน Swing มีหน้าที่แค่รับปุ่มที่กดและวาดจอ
+- Game loop ใช้ thread เดียว
 
-```
-GameWindow (JFrame, CardLayout)
- ├─ MenuPanel / ResultPanel (JPanel + JButton, ActionListener)
- └─ GamePanel (JPanel, paintComponent, KeyListener) ──draws──▶ GameWorld
-GameLoop implements Runnable ── Thread ~60 FPS: world.update(dt) → panel.repaint()
-GameWorld: Base, Wizard, ArrayList<Enemy>, ArrayList<Projectile>, WaveManager, TileMap
-```
+| ส่วน | Class หลัก |
+|---|---|
+| การพิมพ์ (เก็บของเดิม) | `Levenshtein`, `Tier`, `AccuracyGrader`, `InputBuffer` |
+| การ์ด | `enum SpellRole`, `Incantation`, `SpellDeck` (`String[][]` ชุดคาถา) |
+| นักเวท | `abstract Duelist` → `PlayerWizard`, `BotWizard` · `Cast` (cast bar) · `Shield` |
+| สมองบอท | `interface BotBrain` → `ApprenticeBrain`, `AurorBrain`, `DarkWizardBrain` · `BotProfile` (`int[][]` stat) |
+| ของที่บินอยู่บนจอ | `Projectile`, `Particle`, `FloatingText` |
+| ระบบ | `GameWorld`, `GameStats`, `Hud`, `Assets` · ui: `GameWindow`, `MenuPanel`, `GamePanel`, `ResultPanel`, `GameLoop` |
 
-| Class / Interface | หน้าที่ | หัวข้อ OOP |
+## 4. Milestones (วันนี้ 27 ต.ค. · หยุดเพิ่มฟีเจอร์เย็น 30 ต.ค.)
+ทุกวันจบด้วย **30 นาทีทำความเข้าใจ**: อ่าน class ที่ LLM เขียนในวันนั้น แล้วจดลง `notes/understanding.md` ว่าแต่ละ class ทำอะไรและทำไมออกแบบแบบนี้ (ด้วยคำพูดของตัวเอง) โน้ตนี้จะกลายเป็นวัตถุดิบของรายงานบทที่ 2
+
+| # | วัน | ผลลัพธ์ที่รันหรือทดสอบได้ |
 |---|---|---|
-| `interface Updatable`, `interface Drawable` | `update(double dt)`, `draw(Graphics2D)` | Interface |
-| `abstract Entity` | x, y, hitbox, sprite | Abstract, Inheritance |
-| `abstract Enemy extends Entity` → `Goblin`, `Troll`, `Dementor`, `DarkWizardBoss` | `takeDamage(Spell, power)` override ได้ (Dementor ต้านคาถาอื่น) | Inheritance, Polymorphism |
-| `abstract Spell` → `Stupefy`, `Incendio`, `Protego`, `Expelliarmus`, `ExpectoPatronum` | ชื่อ, baseDamage, cooldown, `cast(world, power)` | Polymorphism |
-| `interface Targeting` → `LockOnTargeting`, `DirectionalTargeting`, `SelfTargeting` | Spell แต่ละตัวถือ Targeting ของตัวเอง | Interface, composition |
-| `Projectile extends Entity` | วิ่งไปหาเป้าหรือวิ่งตามทิศ แล้วชน | Graphics |
-| `SpellBook` | เก็บ Spell[], `match(String typed)` → Spell + distance | Array, Method |
-| `Levenshtein` (static) | `distance(a, b)` ด้วย `int[][] dp` | Multidimensional array |
-| `AccuracyGrader` + `enum Tier` | (distance, length, timeMs) → Tier + multiplier | Algorithm |
-| `InputBuffer` | ตัวอักษรที่พิมพ์ + เวลาเริ่ม | |
-| `WaveManager` | `int[][] waveTable` (แถว = wave, คอลัมน์ = จำนวนศัตรูแต่ละชนิด), spawn ตามเวลา | 2D array, ArrayList |
-| `TileMap` | `int[][] tiles` + tileset | 2D array, Graphics |
-| `Assets` | โหลด/cache `BufferedImage` จาก resources | |
-
-**จุดยากที่ต้องระวัง**
-- **Thread safety**: game thread แก้ list ขณะที่ EDT วาด → `ConcurrentModificationException` ให้ sync ด้วย lock ตัวเดียว หรือวาดจาก snapshot และไม่แก้ list ระหว่าง loop (เก็บตัวที่ตายไว้ลบทีหลัง)
-- **Pause**: ใช้ `volatile boolean paused` ห้ามใช้ `Thread.suspend()` (deprecated แบบในโค้ดตัวอย่าง)
-- **Keyboard focus**: หลังกดปุ่มหรือสลับ card ต้องเรียก `requestFocusInWindow()` ไม่งั้น KeyListener จะไม่ทำงาน
-- **dt-based movement**: ความเร็วต้องไม่ขึ้นกับ FPS (`pos += speed * dt`) และทำให้ test เวลา cooldown ได้
-- Lock-on แล้วเป้าตายก่อนกด Enter → เลือกตัวใกล้สุดใหม่อัตโนมัติ, ถ้าไม่มีศัตรูเลย → Fizzle
-- คำที่พิมพ์ใกล้คาถาสองอันพอกัน → เลือกอันที่ distance ต่ำสุด เสมอกันให้เลือกอันที่สั้นกว่า
-
-## 4. Milestones (วันนี้ 11 ต.ค. · feature freeze 28 ต.ค.)
-| # | ช่วง | ผลลัพธ์ที่รันหรือทดสอบได้ |
-|---|---|---|
-| M0 | 11–12 ต.ค. | git repo + GitHub, โครง `src/`, `test.sh`/`run.sh`/`build.sh`, JUnit 5 รันได้, Actions เขียว, JFrame เปล่าเปิดได้ |
-| M1 | 13–15 ต.ค. | Core typing logic: `Levenshtein`, `AccuracyGrader`, `SpellBook.match` + unit test ครบ (ยังไม่มีกราฟิก) |
-| M2 | 16–18 ต.ค. | `GameLoop` thread + `GamePanel` วาดรูปทรงง่ายๆ: ฐาน, Goblin เดินเข้าหา, พิมพ์ `stupefy` + Enter แล้วยิงโดน เห็น Tier บนจอ |
-| M3 | 19–22 ต.ค. | ครบ 5 คาถา + 3 Targeting + cooldown + Tab/←→ + HUD cooldown |
-| M4 | 23–25 ต.ค. | ครบ 3 ศัตรู + boss, `WaveManager` 5 wave, Win/Lose, Menu/Result/Pause |
-| M5 | 26–28 ต.ค. | ใส่ asset จริง: tilemap, sprite, HUD สวยขึ้น (ถ้าเหลือเวลาทำ animation/sound) |
-| M6 | 29–31 ต.ค. | Balance, แก้บั๊ก, playtest กับเพื่อน 2–3 คน, Release `v1.0` .jar |
-| M7 | 1–3 พ.ย. | รายงาน (บทที่ 1–3: Class Diagram, GUI, Event handling, Algorithm, ปัญหา/จุดเด่น), สไลด์ 10 นาที, ซ้อมพรีเซนต์ + demo script |
+| D1 | 27 ต.ค. | tag `td-prototype` (master) และ `army-prototype` (proto-army) แล้วแตก branch `duel` จาก master · rename package เป็น `spellduel` · ลบ model/ui ของ tower defense · เก็บ `typing` + test ไว้ → `./test.sh` ผ่าน |
+| D2 | 28 ต.ค. | `SpellDeck`, `Duelist`, `Cast`, `Projectile`, `GameWorld`, `ApprenticeBrain` + test · `GamePanel` วาดเป็นรูปทรง เล่นชนะหรือแพ้ Apprentice ได้ 1 รอบ |
+| D3 | 29 ต.ค. | `AurorBrain`, `DarkWizardBrain`, ladder 3 ตัว, Menu/Result/Pause, การ์ดและ cast bar บน HUD |
+| D4 | 30 ต.ค. | sprite มุมมองด้านข้าง + effect, balance จาก playtest (ให้เพื่อนเล่น 2 คน), อัปเดต README, Release `v1.0` jar → **หยุดเพิ่มฟีเจอร์** |
+| D5–D7 | 31 ต.ค.–2 พ.ย. | รายงานบทที่ 1–3 (class diagram, GUI, event, algorithm), สไลด์ 10 นาที, demo script, ซ้อมพรีเซนต์ |
+| D8 | 3 พ.ย. | **ส่งรอบแรก**: PDF + code (ถามอาจารย์ว่าต้องส่งก่อนกี่โมง) |
+| D9 | 4 พ.ย. | พรีเซนต์ |
+| D10 | 5–7 พ.ย. | แก้ตามคำติชม → **ส่งฉบับสมบูรณ์ 7 พ.ย. 16:00 น.** (.jar + source + ลิงก์ GitHub + รายงาน PDF ใน Classroom) |
 
 ## 5. Verification
-- **M0**: `./test.sh` ผ่าน (test ตัวอย่าง 1 ตัว), `./run.sh` เปิดหน้าต่างได้, badge Actions เขียว
-- **M1**: JUnit เช่น `distance("incendio","incendoi")==2`, `match("stupify")` ได้ Stupefy, พิมพ์ถูกหมดภายใน parTime ได้ PERFECT แต่ช้ากว่านั้นได้ Great, `"xyz"` ได้ Fizzle, input ว่างไม่ crash
-- **M2**: เล่นด้วยมือ: Goblin เดินถึงฐานแล้ว HP ลด, พิมพ์ถูกหรือผิดแล้วดาเมจต่างกันตามที่เห็นบนจอ, กด Esc แล้วทุกอย่างหยุดจริง
-- **M3**: test cooldown (cast ซ้ำก่อนหมด cooldown ไม่ออก), test Dementor รับดาเมจ patronum มากกว่า stupefy; เล่นด้วยมือ: Tab วน marker ได้ครบ, ←→ หมุนทิศแล้ว incendio ไปตามทิศ
-- **M4**: test `WaveManager` spawn จำนวนตาม `waveTable`; เล่นด้วยมือจนชนะและแพ้อย่างละ 1 รอบ, Restart จาก Result แล้ว state รีเซ็ตครบ
-- **M5–M6**: เปิด .jar จาก Release บนเครื่องอื่น (หรือ Windows) แล้ว asset โหลดครบ, เล่น 10 นาทีแล้วไม่ lag ไม่ crash
-- **End-to-end**: ดาวน์โหลด `SpellDefender.jar` จาก GitHub Release บนเครื่องที่มีแค่ Java 17 → `java -jar` → Menu → เล่นผ่านทั้ง 5 wave จนชนะ boss ระหว่างนั้นต้องสาธิตได้ว่า (1) พิมพ์ผิดแล้วคาถาอ่อนลง/Fizzle (2) พิมพ์เร็วแล้วได้ PERFECT (3) Dementor แพ้ patronum (4) protego กันดาเมจฐานได้ (5) Pause/Resume ทำงาน และ `./test.sh` ผ่านทั้งหมด
+- **D1**: `./test.sh` ผ่าน (`LevenshteinTest`, `AccuracyGraderTest`, `InputBufferTest`, `ArchitectureTest`) และ `grep -r spelldefender src` ต้องไม่เจออะไร
+- **D2**: JUnit ผ่าน
+  - Attack โดนแล้ว HP ลด และ cast ของบอทถูกตัด
+  - Shield ทุก tier สะท้อน Attack กลับใส่คนตี และแรงตาม tier ของโล่
+  - Interrupt ทำลายโล่ได้
+  - Fizzle แล้วการ์ดยังอยู่
+  - ใช้การ์ดแล้วได้คำใหม่ที่ไม่ซ้ำคำเดิม
+  - โดนตีแล้วช่องพิมพ์ของผู้เล่นถูกล้าง
+  - HP หมดแล้ว status เป็น WON หรือ LOST
+  - เล่นด้วยมือ: ชนะ Apprentice ได้
+- **D3**: JUnit ผ่าน (ใช้ seed คงที่)
+  - Apprentice ร่ายแต่ Attack
+  - Auror ตั้งโล่เมื่อผู้เล่นพิมพ์ต้นคำของการ์ด Attack ไป 3 ตัว
+  - Dark Wizard เปลี่ยนหน้าที่กลางทาง
+  - เล่นด้วยมือ: ชนะแล้วไปบอทตัวถัดไป แพ้แล้ว Retry ที่ตัวเดิม และ state รีเซ็ตครบ
+- **D4**: เปิด jar จาก Release บนเครื่องอื่นได้ asset โหลดครบ และเล่น 10 นาทีไม่ crash
+- **End-to-end**: ดาวน์โหลด `SpellDuel.jar` จาก Release บนเครื่องที่มีแค่ Java 17 แล้ว `java -jar` → Menu → ชนะบอททั้ง 3 ตัว ระหว่างนั้นต้องโชว์ได้ว่า
+  1. พิมพ์ผิดแล้วคาถาอ่อนลง หรือ Fizzle
+  2. Shield กัน Attack ได้
+  3. Interrupt ตัด cast bar Shield ของบอทได้ แต่ตัด Attack ไม่ได้ และพิมพ์ครึ่งคำ (WEAK) ตัดอะไรไม่ได้
+  4. การ์ดเปลี่ยนคำหลังใช้
+  5. Dark Wizard หลอกเปลี่ยนคาถาได้
+  6. Pause/Resume ทำงาน
+
+  และ `./test.sh` ผ่านทั้งหมด
 
 ## 6. Constraints and rules
-- ส่งงาน **3 พ.ย.** และพรีเซนต์ **4 พ.ย.** (10 นาที) เป้าคือ 10/10
-- ทำคนเดียว ใช้ AI ได้แต่ **ต้องอธิบายโค้ดได้ทุก class**: ทุก milestone ต้องอ่านและสรุปเองว่าแต่ละ class ทำอะไร และทำตาราง "หัวข้อที่เรียน → class ที่ใช้" ไว้ในรายงานและสไลด์
-- ต้องครอบคลุมทุกหัวข้อ: Class/Object, Method, Array, 2D array/ArrayList, Inheritance, Polymorphism, Interface/Abstract, GUI/Event, Graphics, Thread
-- Java 17, Swing/AWT/Java2D ใช้ library นอกได้ถ้ามีเหตุผล (เริ่มจาก JUnit 5)
-- Asset ต้องมี license ที่ใช้ฟรีได้ และใส่ credit
+- **ส่งรอบแรก 3 พ.ย.** (PDF + code), **พรีเซนต์ 4 พ.ย.** (10 นาที), **ส่งฉบับสมบูรณ์ 7 พ.ย. 2569 16:00 น.**
+  - ฉบับสมบูรณ์ประกอบด้วย .jar (ถ้าทำไม่ได้ ใช้ .rar), source code, ลิงก์ GitHub และรายงาน PDF
+  - เป้า 10/10
+- ทำคนเดียว ให้ LLM เขียนโค้ดได้ แต่**ต้องอธิบายได้ทุก class** ตอนพรีเซนต์ จึงต้องทำ "30 นาทีทำความเข้าใจ" ทุกวัน ห้ามข้าม
+- ต้องใช้ทุกหัวข้อ: Class/Object, Method, Array, 2D array/ArrayList, Inheritance, Polymorphism, Interface/Abstract, GUI/Event, Graphics, Thread
+- Java 17 + Swing ใช้ library นอกได้ถ้ามีเหตุผล (ตอนนี้ใช้ JUnit 5)
+- asset ต้องมี license ที่ใช้ฟรีได้ และต้องใส่ credit ไว้ใน README กับรายงาน
 - รายงานใช้โครงเดียวกับตัวอย่างใน `docs/example/`
 
 ## 7. Open questions
-- Build tool: ใช้ shell script + JUnit standalone jar (เรียบง่ายตาม README) หรือย้ายไป **Gradle** (มาตรฐานงานจริง จัดการ library ให้เอง) ต้องตัดสินใจใน M0
-- จะใช้ asset pack ไหน (ต้องมีทั้งพ่อมด, Goblin, Troll, Dementor-like ghost, boss และ tileset ในสไตล์เดียวกัน)
-- ค่า `k` ใน parTime และค่าตัดของแต่ละ Tier จะหาจากการ playtest ใน M2–M3
-- ไฟล์ใน `docs/` ที่ README อ้างถึง (GDD, ARCHITECTURE, ROADMAP ฯลฯ) ยังไม่มี: จะเขียนจริงหรือลดเหลือ SPEC.md + รายงาน
-- ขนาดหน้าต่าง และขนาด tile (เช่น 960×640, tile 32px)
+- asset pack ของพ่อมดมุมมองด้านข้าง 3–4 ตัว (หาบน itch.io คำค้น "pixel wizard side view free") ถ้าไม่เจอ ใช้รูปทรง + สีไปก่อน
+- ค่า balance เริ่มต้นใน DESIGN §6 (HP, ความเร็วพิมพ์ของบอท, ดาเมจ) จะปรับตอน playtest ใน D4
+- จะ rename repo บน GitHub เป็น `spell-duel` ไหม (GitHub redirect ลิงก์เก่าให้เอง)
+- รอบแรก 3 พ.ย. ต้องส่งก่อนกี่โมง

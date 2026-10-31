@@ -3,42 +3,44 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project status
-Spell Defender is a typing-based wizard tower-defense game: a 2D pixel top-down Java Swing mini project for an OOP course. The student works solo. Submission is due **3 Nov 2026** and the 10-minute presentation is on 4 Nov.
-`SPEC.md` is the source of truth for features and milestones. `DESIGN.md` is the approved architecture (packages, thread rule, ownership table, class diagram). Read both before changing structure; if code must deviate from DESIGN.md, update DESIGN.md first. Where README.md disagrees with SPEC.md, SPEC.md wins. `docs/` is gitignored (it holds only reference material).
+**Spell Duel** is a 1v1 typing wizard duel against bots: a 2D pixel side-view Java Swing mini project for an OOP course. The student works solo. On 27 Oct 2026 it was re-scoped from a tower-defense game. The old versions stay reachable via tags `td-prototype` (master) and `army-prototype` (proto-army, see `SPEC-ARMY.md`). Do not extend them.
+Deadlines: feature freeze **30 Oct** · first submission (PDF + code) **3 Nov** · presentation **4 Nov** (10 min) · final submission **7 Nov 2026 16:00**. The final submission is .jar + source + GitHub link + report PDF on Classroom.
+`SPEC.md` is the source of truth for features and day-by-day milestones (D1–D10). `DESIGN.md` is the approved architecture: duel rules §5, bots §6, ownership table §9, class diagram. Read both before changing structure. If code must deviate from DESIGN.md, update DESIGN.md first. Where README.md disagrees with SPEC.md, SPEC.md wins (README is updated in D4). `docs/` is gitignored and holds only reference material.
+
+**Migration in progress (D1):** code may still be in package `spelldefender` with tower-defense classes. Target layout:
+- Package `spellduel`.
+- Keep `typing/` and its tests unchanged except the package name.
+- Delete the TD/army model and ui.
 
 ## Commands
 Plain scripts, no Gradle/Maven. `test.sh` downloads the JUnit 5 console-standalone jar into `lib/` on first run. Compiles with `--release 17` (JDK 17+).
 ```bash
-./test.sh                                                     # compile + run all tests
-./test.sh --select-class spelldefender.model.GameWorldTest    # one test class
-./test.sh --select-method spelldefender.model.GameWorldTest#protegoShieldAbsorbsDamage
+./test.sh                                                 # compile + run all tests
+./test.sh --select-class spellduel.model.GameWorldTest    # one test class
+./test.sh --select-method spellduel.model.GameWorldTest#shieldBlocksAttack
 ./run.sh      # build + play
-./build.sh    # create dist/SpellDefender.jar
+./build.sh    # create dist/SpellDuel.jar
 ```
-Windows uses `test.bat` / `run.bat` / `build.bat`. CI (`.github/workflows/build.yml`) runs `test.sh` then `build.sh`.
+Windows uses `test.bat` / `run.bat` / `build.bat`. CI (`.github/workflows/build.yml`) runs `test.sh` then `build.sh`. When renaming, update the package and jar names in the scripts too.
 
 ## Architecture (details in DESIGN.md)
-- **Packages**: `spelldefender.ui → model → typing`, never the reverse. `model` may use `java.awt` (entities draw themselves with `Graphics2D`) but never `javax.swing`; `ArchitectureTest` enforces this. Everything in `model` except `GameWorld`, `GameStats`, `Assets` is package-private, so `ui` can only talk to `GameWorld`.
-- **Thread rule**: every public `GameWorld` method is `synchronized`. Never call Swing while holding it; `GameLoop` reads `stats()` then uses `invokeLater`.
-- **Time** is game time (`GameWorld.clock` = sum of dt), used for cooldowns and typing parTime, so pause doesn't count and tests drive time with `update(dt)`.
-- **Tests** live in the same package as the model and build worlds with the package-private constructor `new GameWorld(SpellBook.standard(), WaveManager.idle(), TileMap.standard())` plus `addEnemy(...)`.
-- **Balance numbers** (HP, speed, damage, cooldown, wave table) sit as constructor arguments in each `Enemy`/`Spell` subclass and in `WaveManager.STANDARD_WAVES`. Last tuned with a bot: typing ~4 chars/s usually wins.
-- **Game loop**: a single `GameLoop` thread (~60 FPS) calls `world.update(dt)` then `panel.repaint()`. Inside `update`, entities only `kill()` themselves; `sweepDead()` removes them once at the end of the tick.
-- **Pause** uses a `volatile boolean` in `GameLoop`. Never use `Thread.suspend()/resume()`, even though the example code in `docs/example/javaapplication5` does.
-- **Focus**: call `requestFocusInWindow()` after every card switch or dialog (`GameWindow.show`/`focusCurrent`). `GamePanel` calls `setFocusTraversalKeysEnabled(false)` so Tab reaches the KeyListener.
-- **Spell casting pipeline** lives entirely in `GameWorld.castTyped()`:
-  1. `InputBuffer` gives the typed text and the elapsed game time since the first key.
-  2. `SpellBook.match` returns the closest spell by Levenshtein distance; on a tie it picks the shorter spell.
-  3. `AccuracyGrader.grade` returns a `Tier` (PERFECT ×1.25 / Great ×1.0 / Good ×0.6 / Weak ×0.3 / Fizzle ×0). PERFECT requires zero errors within `parTime = length × k + 1s`.
-  4. `spell.cast(world, tier)` is a final template method: it checks cooldown, then delegates to the spell's `Targeting` (LockOn / Directional / Self). It returns false when there is no target, which counts as Fizzle. On hit, `GameWorld` calls the subclass's `impact()`.
-- **Lock-on target** has one definition, `GameWorld.currentLockTarget()`. The marker drawing and casting both use it.
-- **The Dementor rule** lives only in `Dementor.takeDamage`. Spells just report `damageType()`.
-- `WaveManager` (`int[][] waveTable`), `TileMap` (`int[][] tiles`, and the base and spawn points derived from it) and `Levenshtein` (`int[][] dp`) cover the 2D-array topic on purpose.
+- **Packages**: `spellduel.ui → model → typing`, never the reverse. `model` may use `java.awt` but never `javax.swing`; `ArchitectureTest` enforces this. Everything in `model` except `GameWorld`, `GameStats`, `Assets` is package-private, so `ui` can only talk to `GameWorld`.
+- **Thread rule**: every public `GameWorld` method is `synchronized`. Never call Swing while holding the lock; `GameLoop` reads `stats()` then uses `invokeLater`. Pause is a `volatile boolean` in `GameLoop`; never `Thread.suspend()`. Inside `update`, entities only `kill()` themselves; `sweepDead()` removes them at the end of the tick.
+- **Time** is game time (`GameWorld.clock`), used for parTime, bot cast bars, shield duration and bot reaction delay. Tests drive it with `update(dt)` and seed every `Random`.
+- **Player cast pipeline** lives only in `GameWorld.castTyped()`:
+  1. `InputBuffer` returns the text.
+  2. `SpellDeck.match` finds the closest of the 3 hand cards (Levenshtein; on a tie the shorter one).
+  3. `AccuracyGrader.grade` returns a `Tier`.
+  4. FIZZLE does nothing and keeps the card. Otherwise `deck.consume(card)` redraws that card's word, then the role's effect runs.
+- **Hit rules** (attack / shield / interrupt / reflect / break shield / cancel cast) live only in `GameWorld.resolveHit`. "First to finish wins" is not a separate rule: it falls out because a landed Attack calls `interruptCast()` on the target. That call clears the player's `InputBuffer`, or drops the bot's `Cast`.
+- **Bots** = `BotWizard` + `BotProfile` (a row of `int[][] STATS`) + `BotBrain` (Apprentice / Auror / DarkWizard extends Auror). "What is the player typing" has one definition, `SpellDeck.guessRole`, which brains see through the read-only `DuelView`.
+- The 2D arrays `String[][] POOLS` (spell words per role), `int[][] STATS` and `Levenshtein`'s `int[][] dp` exist on purpose for the course's 2D-array topic.
+- **Focus**: call `requestFocusInWindow()` after every card switch. `GamePanel` calls `setFocusTraversalKeysEnabled(false)`.
 
 ## Rules
-- Every course topic (Class/Object, Method, Array, 2D array/ArrayList, Inheritance, Polymorphism, Interface/Abstract, GUI/Event, Graphics, Thread) must be visibly used. Keep the design explainable by a student: prefer clear OOP over clever patterns.
-- AI use is allowed, but the student must be able to explain every class. Keep code simple, add short comments where intent isn't obvious, and summarize new classes after each change.
-- External libraries are allowed if they are justified. JUnit 5 is the first one. FlatLaf and Gson are optional nice-to-haves.
-- Free-licensed pixel assets (itch.io / OpenGameArt) must be credited in the README and the report.
-- `docs/example/` holds past students' reports and example code. It is reference material only, not part of the build. The final report follows its structure: Ch. 1 intro, Ch. 2 class diagram / GUI / event handling / algorithm, Ch. 3 problems / highlights / suggestions.
+- Every course topic (Class/Object, Method, Array, 2D array/ArrayList, Inheritance, Polymorphism, Interface/Abstract, GUI/Event, Graphics, Thread) must be visibly used (map in DESIGN §10). Prefer clear OOP over clever patterns.
+- The LLM writes most code, but the student must explain every class at the presentation. Keep code simple, with short Thai comments where intent isn't obvious. After each change, summarize the new or changed classes in plain Thai, so the student can add them to `notes/understanding.md`.
+- If time runs short, cut in the order of DESIGN §12. Do not add features after 30 Oct.
+- External libraries need a justification (JUnit 5 only so far). Free-licensed assets must be credited in the README and the report.
+- `docs/example/` holds past students' reports and example code, as reference only. The report follows its structure: Ch. 1 intro, Ch. 2 class diagram / GUI / event handling / algorithm, Ch. 3 problems / highlights / suggestions.
 - The UI and docs are in Thai, with English technical terms.

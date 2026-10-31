@@ -13,5 +13,5 @@ jobs:
       - run: ./build.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: SpellDefender
-          path: dist/SpellDefender.jar
+          name: SpellDuel
+          path: dist/SpellDuel.jar

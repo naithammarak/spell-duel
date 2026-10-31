@@ -7,4 +7,4 @@ dir /s /b src\main\java\*.java > sources.txt
 javac --release 17 -encoding UTF-8 -d out\main @sources.txt || exit /b 1
 del sources.txt
 xcopy /e /i /q src\main\resources out\main >nul
-java -cp out\main spelldefender.Main
+java -cp out\main spellduel.Main

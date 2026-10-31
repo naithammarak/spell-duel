@@ -5,4 +5,4 @@ cd "$(dirname "$0")"
 rm -rf out/main
 javac --release 17 -encoding UTF-8 -d out/main $(find src/main/java -name '*.java')
 cp -r src/main/resources/. out/main/
-java -cp out/main spelldefender.Main
+java -cp out/main spellduel.Main

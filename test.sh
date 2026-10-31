@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # รันเทสต์ทั้งหมด (JUnit 5)
 #   ./test.sh                                              ทุกเทสต์
-#   ./test.sh --select-class spelldefender.typing.LevenshteinTest   เทสต์ class เดียว
+#   ./test.sh --select-class spellduel.typing.LevenshteinTest   เทสต์ class เดียว
 set -euo pipefail
 cd "$(dirname "$0")"
 

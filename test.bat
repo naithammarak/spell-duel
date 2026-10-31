@@ -1,5 +1,5 @@
 @echo off
-rem รันเทสต์ทั้งหมด (JUnit 5)  ตัวอย่างเทสต์ class เดียว: test.bat --select-class spelldefender.typing.LevenshteinTest
+rem รันเทสต์ทั้งหมด (JUnit 5)  ตัวอย่างเทสต์ class เดียว: test.bat --select-class spellduel.typing.LevenshteinTest
 setlocal
 cd /d "%~dp0"
 set JUNIT_VERSION=1.11.4
