@@ -40,9 +40,9 @@ final class Hud {
     /** คำอธิบายสั้น ๆ ใต้ชื่อหน้าที่บนการ์ด */
     private static String hint(SpellRole role) {
         return switch (role) {
-            case ATTACK -> "ดาเมจสูง · Great+ ตัด cast ได้";
-            case SHIELD -> "สะท้อน Attack กลับ 1 ครั้ง (3 วิ)";
-            case INTERRUPT -> "ทำลายโล่ · Great+ ตัดการร่ายโล่";
+            case ATTACK -> "ชนะ Interrupt · แพ้ Shield";
+            case SHIELD -> "ชนะ Attack (สะท้อน) · แพ้ Interrupt";
+            case INTERRUPT -> "ชนะ Shield (ทำลายโล่) · แพ้ Attack";
         };
     }
 
@@ -70,6 +70,19 @@ final class Hud {
         centered(g, "บอท " + (botLevel + 1) + "/" + GameWorld.BOT_COUNT, GameWorld.WIDTH / 2, 40);
     }
 
+    /** เลขรอบ + แถบเวลาที่เหลือ ใต้กลางจอ */
+    static void drawRound(Graphics2D g, int round, double timeLeft, boolean revealing) {
+        int w = 110;
+        int x = (GameWorld.WIDTH - w) / 2;
+        g.setFont(SMALL);
+        g.setColor(Color.WHITE);
+        centered(g, revealing ? "เปิดไพ่!" : "รอบ " + round, GameWorld.WIDTH / 2, 60);
+        g.setColor(new Color(0, 0, 0, 150));
+        g.fillRect(x, 66, w, 8);
+        g.setColor(timeLeft > 0.3 ? new Color(120, 230, 120) : new Color(255, 90, 90));
+        g.fillRect(x, 66, (int) (w * timeLeft), 8);
+    }
+
     private static void drawHp(Graphics2D g, Duelist d, int x, boolean rightToLeft) {
         int w = 380;
         int h = 20;
@@ -95,7 +108,7 @@ final class Hud {
         }
     }
 
-    /** cast bar เหนือหัวบอท: หน้าที่ + คำ + เวลาที่เหลือ */
+    /** cast bar เหนือหัวบอท: ซ่อนหน้าที่ไว้จนถึงครึ่งแถบ */
     static void drawCastBar(Graphics2D g, BotWizard bot) {
         int w = 240;
         int h = 16;
@@ -104,7 +117,13 @@ final class Hud {
         Cast cast = bot.cast();
         g.setColor(new Color(0, 0, 0, 160));
         g.fillRect(cx - w / 2, y, w, h);
-        if (cast != null) {
+        if (cast != null && !cast.isRevealed()) {
+            g.setColor(Color.GRAY);
+            g.fillRect(cx - w / 2, y, (int) (w * cast.progress()), h);
+            g.setFont(LABEL);
+            g.setColor(Color.WHITE);
+            centered(g, cast.isDone() ? "ล็อกแล้ว" : "???", cx, y - 8);
+        } else if (cast != null) {
             Color c = cast.role().color();
             g.setColor(c);
             g.fillRect(cx - w / 2, y, (int) (w * cast.progress()), h);
@@ -125,7 +144,7 @@ final class Hud {
     }
 
     /** ช่องพิมพ์ของผู้เล่น */
-    static void drawInput(Graphics2D g, String typed, boolean thaiWarning) {
+    static void drawInput(Graphics2D g, String typed, String locked, boolean thaiWarning) {
         int w = 480;
         int h = 40;
         int x = (GameWorld.WIDTH - w) / 2;
@@ -134,7 +153,11 @@ final class Hud {
         g.fillRoundRect(x, y, w, h, 10, 10);
         g.setColor(new Color(160, 140, 220));
         g.drawRoundRect(x, y, w, h, 10, 10);
-        if (typed.isEmpty()) {
+        if (locked != null) {
+            g.setFont(LABEL);
+            g.setColor(new Color(255, 215, 90));
+            centered(g, locked, GameWorld.WIDTH / 2, y + 26);
+        } else if (typed.isEmpty()) {
             g.setFont(SMALL);
             g.setColor(Color.GRAY);
             centered(g, "พิมพ์คาถาจากการ์ด แล้วกด Enter", GameWorld.WIDTH / 2, y + 25);

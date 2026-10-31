@@ -58,8 +58,8 @@ abstract class Duelist extends Entity {
         return shield != null;
     }
 
-    void raiseShield(Tier tier) {
-        shield = new Shield(tier);
+    void raiseShield(Tier tier, double bonus) {
+        shield = new Shield(tier, bonus);
     }
 
     void breakShield() {
@@ -81,14 +81,11 @@ abstract class Duelist extends Entity {
         return y - 72;
     }
 
-    /** ตัด cast: ผู้เล่นเสียข้อความที่พิมพ์ค้าง / บอทเสีย cast bar (polymorphism) */
+    /** จบรอบ: ผู้เล่นล้างข้อความที่พิมพ์ค้าง / บอททิ้ง cast bar (polymorphism) */
     abstract void interruptCast();
 
     /** กำลังร่ายอยู่ไหม (ไม้กายสิทธิ์จะเรืองแสง) */
     abstract boolean isCasting();
-
-    /** กำลังร่ายหน้าที่อะไร หรือ null ถ้าไม่รู้/ไม่ได้ร่าย (Interrupt ตัดได้เฉพาะ SHIELD) */
-    abstract SpellRole castingRole();
 
     @Override
     public void update(double dt) {

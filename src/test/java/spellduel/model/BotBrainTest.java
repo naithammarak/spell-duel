@@ -1,6 +1,7 @@
 package spellduel.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,43 +11,63 @@ import org.junit.jupiter.api.Test;
 
 class BotBrainTest {
 
-    private static DuelView view(boolean playerShielded, SpellRole intent, Random rnd) {
-        return new DuelView(100, 100, playerShielded, false, intent, rnd);
+    private static DuelView view(SpellRole last, Random rnd) {
+        return new DuelView(100, 100, false, false, null, last, rnd);
     }
 
-    @Test
-    void apprenticeOnlyAttacks() {
-        BotBrain brain = new ApprenticeBrain();
-        Random rnd = new Random(1);
-        for (SpellRole intent : new SpellRole[] {null, SpellRole.ATTACK, SpellRole.SHIELD}) {
-            assertEquals(SpellRole.ATTACK, brain.decide(view(true, intent, rnd)));
-            assertEquals(SpellRole.ATTACK, brain.decide(view(false, intent, rnd)));
+    private static Cast castAt(double progress) {
+        Cast cast = new Cast(SpellRole.ATTACK, "bombarda maxima", 2.0);
+        cast.advance(2.0 * progress);
+        return cast;
+    }
+
+    private static int count(BotBrain brain, SpellRole last, SpellRole wanted, Random rnd) {
+        int n = 0;
+        for (int i = 0; i < 1000; i++) {
+            if (brain.decide(view(last, rnd)) == wanted) {
+                n++;
+            }
         }
+        return n;
     }
 
     @Test
-    void aurorReadsThePlayer() {
-        BotBrain brain = new AurorBrain();
-        Random rnd = new Random(1);
-        assertEquals(SpellRole.SHIELD, brain.decide(view(false, SpellRole.ATTACK, rnd)));
-        assertEquals(SpellRole.INTERRUPT, brain.decide(view(true, null, rnd)));
-        assertEquals(SpellRole.ATTACK, brain.decide(view(false, null, rnd)));
+    void cardsFormACycle() {
+        assertEquals(SpellRole.SHIELD, SpellRole.ATTACK.beatenBy());
+        assertEquals(SpellRole.INTERRUPT, SpellRole.SHIELD.beatenBy());
+        assertEquals(SpellRole.ATTACK, SpellRole.INTERRUPT.beatenBy());
     }
 
     @Test
-    void darkWizardDecidesLikeAuror() {
-        BotBrain brain = new DarkWizardBrain();
-        assertEquals(SpellRole.SHIELD, brain.decide(view(false, SpellRole.ATTACK, new Random(1))));
+    void apprenticeMostlyAttacks() {
+        int attacks = count(new ApprenticeBrain(), null, SpellRole.ATTACK, new Random(1));
+        assertTrue(attacks > 650 && attacks < 750, "ประมาณ 70%: " + attacks);
     }
 
     @Test
-    void darkWizardNeverFeintsBeforeHalfway() {
+    void aurorMostlyCountersLastCard() {
+        int shields = count(new AurorBrain(), SpellRole.ATTACK, SpellRole.SHIELD, new Random(1));
+        assertTrue(shields > 700 && shields < 850, "ประมาณ 70% + ส่วนที่สุ่มได้: " + shields);
+    }
+
+    @Test
+    void aurorHasNothingToReadOnFirstRound() {
+        int shields = count(new AurorBrain(), null, SpellRole.SHIELD, new Random(1));
+        assertTrue(shields > 250 && shields < 420, "ประมาณ 1 ใน 3: " + shields);
+    }
+
+    @Test
+    void roleIsRevealedAtHalfway() {
+        assertFalse(castAt(0.4).isRevealed());
+        assertTrue(castAt(0.5).isRevealed());
+    }
+
+    @Test
+    void darkWizardNeverFeintsBeforeRoleIsShown() {
         DarkWizardBrain brain = new DarkWizardBrain();
         Random rnd = new Random(3);
         for (int i = 0; i < 100; i++) {
-            Cast cast = new Cast(SpellRole.ATTACK, "bombarda maxima", 2.0);
-            cast.advance(0.9); // 45%
-            assertNull(brain.duringCast(view(false, null, rnd), cast));
+            assertNull(brain.duringCast(view(null, rnd), castAt(0.7)));
         }
     }
 
@@ -56,15 +77,14 @@ class BotBrainTest {
         Random rnd = new Random(42);
         int feints = 0;
         for (int i = 0; i < 300; i++) {
-            Cast cast = new Cast(SpellRole.ATTACK, "bombarda maxima", 2.0);
-            cast.advance(1.2);
-            SpellRole change = brain.duringCast(view(false, null, rnd), cast);
+            Cast cast = castAt(0.8);
+            SpellRole change = brain.duringCast(view(null, rnd), cast);
             if (change != null) {
                 feints++;
                 assertNotEquals(SpellRole.ATTACK, change);
             }
             cast.advance(0.1);
-            assertNull(brain.duringCast(view(false, null, rnd), cast), "สุ่มครั้งเดียวต่อ cast");
+            assertNull(brain.duringCast(view(null, rnd), cast), "สุ่มครั้งเดียวต่อ cast");
         }
         assertTrue(feints > 50 && feints < 130, "ประมาณ 30% ของ 300: " + feints);
     }
@@ -81,5 +101,12 @@ class BotBrainTest {
         assertEquals(duration, cast.duration());
         assertEquals(0.6, cast.progress(), 1e-9);
         assertTrue(cast.isFeinted());
+    }
+
+    @Test
+    void botAlwaysLocksBeforeRoundEnds() {
+        BotWizard bot = new BotWizard(0, 0, BotProfile.row(0), new ApprenticeBrain());
+        bot.startCast(SpellRole.ATTACK, "petrificus totalus");
+        assertTrue(bot.cast().duration() < GameWorld.ROUND_TIME);
     }
 }

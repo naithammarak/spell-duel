@@ -6,6 +6,9 @@ package spellduel.model;
  */
 class Cast {
 
+    /** แถบถึงตรงนี้แล้วผู้เล่นจะเห็นว่าบอทกำลังร่ายอะไร */
+    static final double REVEAL_AT = 0.5;
+
     private SpellRole role;
     private String word;
     private final double duration;
@@ -37,6 +40,11 @@ class Cast {
     /** 0..1 ร่ายไปได้กี่ส่วนแล้ว */
     double progress() {
         return Math.min(1, elapsed / duration);
+    }
+
+    /** บอททุกตัวเปิดหน้าที่เมื่อร่ายถึงครึ่งแถบ */
+    boolean isRevealed() {
+        return progress() >= REVEAL_AT;
     }
 
     boolean isDone() {

@@ -1,6 +1,6 @@
 # DESIGN: Spell Duel
 
-เอกสารออกแบบสถาปัตยกรรมที่อนุมัติแล้ว (27 ต.ค. 2026 แทนฉบับ tower defense เมื่อ 11 ต.ค.) ใช้คู่กับ `SPEC.md`: SPEC บอกว่าเกมต้อง**ทำอะไร** ส่วนเอกสารนี้บอกว่าโค้ด**จัดโครงอย่างไร**
+เอกสารออกแบบสถาปัตยกรรมที่อนุมัติแล้ว (27 ต.ค. 2026 แทนฉบับ tower defense เมื่อ 11 ต.ค. · 31 ต.ค. เปลี่ยนกติกาเป็นแบบรอบ) ใช้คู่กับ `SPEC.md`: SPEC บอกว่าเกมต้อง**ทำอะไร** ส่วนเอกสารนี้บอกว่าโค้ด**จัดโครงอย่างไร**
 ถ้าตอนเขียนโค้ดต้องเบี่ยงจากเอกสารนี้ ให้แก้เอกสารก่อน แล้วค่อยแก้โค้ด
 
 ## 1. ภาพรวม
@@ -50,41 +50,54 @@ public synchronized GameStats stats()               // record ที่แก้
 public static final int BOT_COUNT = 3;
 ```
 
-เทสต์ใช้ constructor แบบ package-private: `new GameWorld(BotProfile.row(i), brain, SpellDeck.standard(new Random(1)))` และ hook `playerCasts(SpellRole, Tier)` / `botCasts(...)` เพื่อจัดฉากได้ตรง ๆ
+เทสต์ใช้ constructor แบบ package-private: `new GameWorld(BotProfile.row(i), brain, SpellDeck.standard(new Random(1)))` และ `resolveRound(SpellRole, Tier, SpellRole, Tier)` เพื่อจัดฉากเปิดไพ่ได้ตรง ๆ
 
 ## 5. กติกาการดวล
 
-### 5.1 ผู้เล่นร่าย (`castTyped()` ที่เดียว)
+เปรียบเหมือนเป่ายิ้งฉุบที่ต้องพิมพ์ก่อนออกมือ: ทั้งสองฝ่ายเตรียมมือพร้อมกัน แล้วกรรมการสั่งเปิดพร้อมกัน
+
+### 5.1 วงจรของรอบ
+`GameWorld.phase` มี 2 ช่วง: `TYPING → REVEAL → TYPING รอบถัดไป`
+
+ค่าคงที่อยู่ใน `GameWorld`: `ROUND_TIME` 8 วินาที · `REVEAL_TIME` 1.6 วินาที · `GRACE_TIME` 1 วินาที · `EARLY_BONUS` ×1.5 · `CLASH_SCALE` ×0.25
+
+**TYPING จบเมื่อ**เกิดข้อใดข้อหนึ่งก่อน
+1. ล็อกครบทั้งสองฝ่าย
+2. บอทล็อกแล้วผ่านไป `GRACE_TIME` (กันการรอดูไพ่แล้วสวนสบาย ๆ)
+3. ครบ `ROUND_TIME` · ถ้าผู้เล่นยังไม่ล็อก ระบบเรียก `castTyped()` ส่งข้อความที่ค้างให้
+
+จากนั้น `resolveRound` เปิดไพ่และเข้า REVEAL · REVEAL จบเมื่อผ่าน `REVEAL_TIME` และไม่มีลูกเวทบินอยู่ · `startRound` ล้างโล่ทั้งสองฝ่าย (**โล่อยู่รอบเดียว**) แล้วถามสมองบอท
+
+### 5.2 ผู้เล่นร่าย (`castTyped()` ที่เดียว)
 ตัวอย่าง: การ์ด Attack คือ `bombarda maxima` แล้วผู้เล่นพิมพ์ `bombarda maxma` กด Enter
 1. `InputBuffer` ให้ข้อความที่พิมพ์ และเวลาที่ใช้ (นับจากกดตัวแรก) แล้วล้าง buffer
 2. `SpellDeck.match(typed)` เทียบกับการ์ด **3 ใบที่อยู่บนมือ** ด้วย Levenshtein → การ์ด Attack, distance 1 (ถ้าเสมอกันเลือกคำที่สั้นกว่า)
 3. `AccuracyGrader.grade(distance, length, seconds)` → Great
-4. ถ้าได้ FIZZLE จะขึ้นข้อความ "Fizzle!" แล้วจบ (การ์ดไม่ถูกใช้)
-5. ถ้าไม่ใช่ FIZZLE: `deck.consume(card)` สุ่มคำใหม่ให้การ์ดใบนั้น แล้วทำตามหน้าที่ (§5.3)
+4. ถ้าได้ FIZZLE จะขึ้นข้อความ "Fizzle!" การ์ดไม่ถูกใช้ และพิมพ์ใหม่ได้ถ้ายังมีเวลา
+5. ถ้าไม่ใช่ FIZZLE: `deck.consume(card)` สุ่มคำใหม่ให้การ์ดใบนั้น แล้ว**ล็อก**หน้าที่กับ tier ไว้รอเปิดไพ่ พิมพ์ต่อไม่ได้แล้ว · ถ้าบอทยังไม่เปิดไพ่ จะจำว่า `lockedEarly`
 
-### 5.2 บอทร่าย
-- `BotWizard` ถือ `Cast` ที่กำลังร่าย (หน้าที่, คำ, `duration = length / profile.cps`, `elapsed`) ซึ่งก็คือ cast bar บนจอ
-- เมื่อ `elapsed ≥ duration` บอทจะร่ายออก โดย Tier สุ่มด้วย `Random` จาก `profile.accuracy` แล้วทำตาม §5.3 เหมือนผู้เล่น
-- ตอนที่บอทว่าง และผ่านช่วงพัก (`profile.reaction`) ไปแล้ว `GameWorld` จะถาม `brain.decide(view)` ว่าจะร่ายอะไรต่อ
-- ระหว่างที่ร่ายอยู่ ทุก tick จะเรียก `brain.duringCast(view, cast)` ด้วย ซึ่งเป็นช่องที่ Dark Wizard ใช้เปลี่ยนคาถา
+### 5.3 บอทร่าย
+- ต้นรอบ `BotWizard.startRound` ถาม `brain.decide(view)` แล้วสร้าง `Cast` (หน้าที่, คำ, `duration = reaction + length / cps` ไม่เกิน `MAX_CAST`, `elapsed`) ซึ่งก็คือ cast bar บนจอ
+- `Cast.isRevealed()`: ถึงครึ่งแถบ (`REVEAL_AT`) จึงแสดงหน้าที่ ก่อนหน้านั้น HUD แสดง "???"
+- ทุก tick เรียก `brain.duringCast(view, cast)` ซึ่งเป็นช่องที่ Dark Wizard ใช้หลอก
+- แถบเต็ม = บอทล็อก · Tier สุ่มตอนเปิดไพ่ด้วย `Random` จาก `profile.accuracy`
 
-### 5.3 ผลของแต่ละหน้าที่ (`GameWorld` ตัดสิน · `power = base × tier.multiplier()`)
+### 5.4 ผลของการเปิดไพ่ (`resolveRound` + `resolveHit` ตัดสิน · `power = base × tier.multiplier() × scale`)
 
-| ร่าย | เกิดอะไร | เมื่อไปถึงเป้า |
-|---|---|---|
-| **Attack** | ปล่อย `Projectile` บินข้ามจอ (~0.6 วินาที) | ถ้าเป้ามีโล่ที่ยังไม่หมด: **สะท้อน** projectile กลับไปหาผู้ร่ายเสมอ (โล่หาย เป้าไม่เสีย HP) · ถ้าไม่มีโล่: HP ลดเท่ากับ power และ**ตัด cast** ของเป้า (บอทเสีย cast bar, ผู้เล่นเสียข้อความที่พิมพ์ค้าง) |
-| **Interrupt** | ปล่อย `Projectile` ที่เร็วกว่า Attack | **ทำลายโล่** + HP ลดเล็กน้อย (ไม่สนว่ามีโล่หรือไม่) · ตัด cast ได้**เฉพาะ cast ที่เป็น Shield** (ตัด Attack ไม่ได้) |
-| **Shield** | ตั้ง `Shield` บนตัวผู้ร่ายทันที นาน 3 วินาที | ทุก tier กัน Attack ได้เต็มและสะท้อนกลับ · แรงของลูกสะท้อน = power ของ Attack × ตัวคูณ tier ของโล่ (PERFECT ×1.25 · Great ×1.0 · Good ×0.6 · Weak ×0.3) |
+| ผู้เล่น \ บอท | Attack | Shield | Interrupt |
+|---|---|---|---|
+| **Attack** | โดนทั้งคู่ | ผู้เล่นโดนลูกสะท้อน | บอทโดน · Interrupt แตก |
+| **Shield** | บอทโดนลูกสะท้อน | ไม่เกิดอะไร | โล่แตก ผู้เล่นโดนเต็ม |
+| **Interrupt** | Interrupt แตก · ผู้เล่นโดน | โล่แตก บอทโดนเต็ม | เบาทั้งคู่ (`CLASH_SCALE`) |
 
-**ต้องแม่นถึงจะตัดได้:** การตัด cast (ทั้งของ Attack และ Interrupt) เกิดเฉพาะเมื่อ projectile เป็น **GREAT หรือ PERFECT** ส่วน GOOD/WEAK ทำได้แค่ดาเมจ (และ Interrupt ยังทำลายโล่ได้ทุก tier)
-"cast ของเป้าเป็นหน้าที่อะไร": บอทดูจาก `cast.role()` · ผู้เล่นดูจาก `SpellDeck.guessRole(ข้อความที่พิมพ์)` (นิยามเดียวกับที่บอทใช้อ่านทาง)
-เหตุผล (27 ต.ค. playtest prototype): เดิมพิมพ์คำสั้น ๆ/ครึ่งคำของ Interrupt รัว ๆ ก็ตัดบอทได้ทุกครั้งจนบอทร่ายไม่เคยเสร็จ ผู้เล่นจำลองชนะบอททุกตัว 40/40 โดยไม่ต้องตัดสินใจเลย
+- **Shield:** ตั้งโล่ทันทีตอนเปิดไพ่ · แรงลูกสะท้อน = power ของ Attack × ตัวคูณ tier ของโล่ × `bonus` ของโล่
+- **Interrupt แตก:** `release` ไม่สร้าง `Projectile` เลย
+- **ไม่ล็อก:** หน้าที่เป็น `null` ไม่ปล่อยอะไร จึงโดนของอีกฝ่ายเต็ม ๆ
+- **กล้าเดา:** ถ้า `lockedEarly` คูณ scale ฝั่งผู้เล่นด้วย `EARLY_BONUS` (Attack และ Interrupt ที่ไปถึงเป้า และ `Shield.bonus`) เพื่อให้การเดาคุ้มกว่าการรอดูไพ่
 
-วงจรจึงเป็นเป่ายิ้งฉุบครบวง: **Attack ชนะ Interrupt** (ตัดไม่ได้ และแรงกว่า) · **Interrupt ชนะ Shield** · **Shield ชนะ Attack**
+เหตุผล (31 ต.ค. playtest): แบบ real-time พิมพ์ใบเดียวรัวก็ชนะ และ Interrupt แทบไม่ได้ใช้ เพราะต้องสวนให้ทันตอนบอทกำลังร่าย แบบรอบทำให้ทุกใบมีทางชนะจริง ผู้เล่นจำลองที่รัวใบเดียวที่ 4 ตัว/วินาที ชนะ Auror ไม่เกิน 7% และ Dark Wizard ไม่เกิน 14%
 
-"ร่ายเสร็จก่อนชนะ" จึงเกิดเองโดยไม่ต้องมีกฎพิเศษ: ถ้าการโจมตีที่แม่นพอของผู้เล่นไปถึงก่อน cast bar ของบอทเต็ม คาถาของบอทจะถูกตัด
-
-### 5.4 จบเกม
+### 5.5 จบเกม
 HP ฝั่งใดถึง 0 → `status()` เป็น WON หรือ LOST · `GameLoop` เห็นแล้วพาไปหน้า Result
 `GameWindow` เก็บ `botLevel` ไว้: ชนะ → Next (`level + 1`) · แพ้ → Retry (เลเวลเดิม) · ชนะเลเวล 2 → หน้า "จบเกม"
 
@@ -98,29 +111,29 @@ HP ฝั่งใดถึง 0 → `status()` เป็น WON หรือ LO
 | 1 Auror | 90 | 35 | 85 | 700 |
 | 2 Dark Wizard | 120 | 45 | 95 | 400 |
 
-ผู้เล่นมี HP 100 · ค่า base: Attack 20, Interrupt 5 (ค่าเริ่มต้น ปรับตอน playtest D4)
+ผู้เล่นมี HP 100 · ค่า base: Attack 20, Interrupt 20 · `reaction` บวกเข้าไปในเวลาร่ายของทุกรอบ
 `BotProfile.row(i)` แปลงแถวเป็น record (`cps = cps×10 / 10.0`) และ constructor ไม่ยอมรับแถวที่ความกว้างผิด
 
 ### 6.2 `interface BotBrain`
 ```java
 interface BotBrain {
-    SpellRole decide(DuelView view);                     // ตอนว่าง: ร่ายอะไรต่อ
+    SpellRole decide(DuelView view);                     // ต้นรอบ: จะร่ายอะไร
     default SpellRole duringCast(DuelView view, Cast c) { return null; } // null = ไม่เปลี่ยน
 }
 ```
-`DuelView` เป็น record ที่อ่านได้อย่างเดียว ส่งให้สมองบอทดู: HP ทั้งสองฝั่ง, ผู้เล่นมีโล่ไหม, `playerIntent` (หน้าที่ที่ผู้เล่นน่าจะกำลังพิมพ์) และ `Random`
+`DuelView` เป็น record ที่อ่านได้อย่างเดียว ส่งให้สมองบอทดู: HP ทั้งสองฝั่ง, สถานะโล่, `playerIntent`, `lastPlayerRole` (การ์ดรอบก่อนของผู้เล่น) และ `Random`
 
 | Brain | นิสัย |
 |---|---|
-| `ApprenticeBrain` | คืน ATTACK ทุกครั้ง |
-| `AurorBrain` | ถ้า `playerIntent == ATTACK` ร่าย SHIELD · ถ้าผู้เล่นมีโล่ ร่าย INTERRUPT · กรณีอื่นร่าย ATTACK |
-| `DarkWizardBrain` | ตอนตัดสินใจใช้กฎเดียวกับ Auror · ใน `duringCast` เมื่อร่ายไปเกินครึ่งทาง มีโอกาส 30% (ครั้งเดียวต่อ cast) ที่จะเปลี่ยนเป็นหน้าที่อื่น cast bar เปลี่ยนป้ายแต่เวลาที่เหลือเท่าเดิม |
+| `ApprenticeBrain` | ATTACK 70% · ที่เหลือสุ่ม SHIELD หรือ INTERRUPT |
+| `AurorBrain` | ถ้ามี `lastPlayerRole`: 70% ออก `lastPlayerRole.beatenBy()` · นอกนั้นสุ่ม 3 ใบ |
+| `DarkWizardBrain` | ตอนตัดสินใจใช้กฎเดียวกับ Auror (สืบทอด) · ใน `duringCast` เมื่อถึง 3/4 แถบ มีโอกาส 30% (ครั้งเดียวต่อ cast) ที่จะเปลี่ยนหน้าที่ ป้ายบน cast bar เปลี่ยนแต่เวลาที่เหลือเท่าเดิม |
 
-**`playerIntent`** มีนิยามเดียวคือ `SpellDeck.guessRole(prefix)` ถ้าพิมพ์ไปแล้วอย่างน้อย 3 ตัว จะเทียบสิ่งที่พิมพ์กับ "ต้นคำ" ของการ์ดแต่ละใบ (ตัดคำให้ยาวเท่าที่พิมพ์) ด้วย Levenshtein แล้วคืนหน้าที่ของการ์ดที่ใกล้ที่สุด ถ้าพิมพ์ยังไม่ถึง 3 ตัว คืน `null`
+ตอนนี้ไม่มีบอทตัวไหนใช้ `playerIntent` · `SpellDeck.guessRole` ยังใช้จริงกับ HUD เพื่อไฮไลต์การ์ดที่ผู้เล่นกำลังพิมพ์
 
 ## 7. การ์ด: `SpellDeck`
 
-- `enum SpellRole { ATTACK, SHIELD, INTERRUPT }` เก็บ `base`, `label`, สี และความเร็ว projectile ไว้ใน enum
+- `enum SpellRole { ATTACK, SHIELD, INTERRUPT }` เก็บ `base`, `label`, สี, ความเร็ว projectile และ `beatenBy()` (ใบที่ชนะใบนี้) ไว้ใน enum
 - `static final String[][] POOLS` (แถว = role ตามลำดับ `ordinal()`, คอลัมน์ = 5 คาถาใน SPEC §2) เป็น **2D array**
 - `Incantation[] hand` (3 ใบ, ใบละ role) · `consume(card)` สุ่มคำใหม่จากแถวเดิม โดยห้ามซ้ำกับคำปัจจุบัน
 - บอทก็สุ่มคำจาก `POOLS` เหมือนกัน (เพื่อเอามาแสดงบน cast bar และคำนวณ duration) แต่ไม่ได้ใช้มือของผู้เล่น
@@ -164,6 +177,8 @@ classDiagram
         -ArrayList~Projectile~ projectiles
         -ArrayList~Entity~ effects
         -double clock
+        -Phase phase
+        -SpellRole lockedRole
         +typeChar(char)
         +backspace()
         +castTyped() CastResult
@@ -171,6 +186,7 @@ classDiagram
         +draw(Graphics2D, Assets)
         +status() Status
         +stats() GameStats
+        ~resolveRound(SpellRole, Tier, SpellRole, Tier)
         ~resolveHit(Projectile, Duelist)
     }
     class Updatable {
@@ -200,7 +216,7 @@ classDiagram
         #int hp
         #Shield shield
         +takeHit(SpellRole, double)
-        +raiseShield(Tier)
+        +raiseShield(Tier, double)
         +interruptCast()*
     }
     Duelist <|-- PlayerWizard
@@ -212,6 +228,8 @@ classDiagram
         -Cast cast
         -BotProfile profile
         -BotBrain brain
+        +startRound(DuelView, Random)
+        +think(double, DuelView, Random)
         +interruptCast()
     }
     Duelist o-- Shield
@@ -288,10 +306,12 @@ classDiagram
 | ข้อความที่พิมพ์ + เวลาเริ่ม | `InputBuffer` | `GameWorld` ส่ง `clock` เข้าไป · `PlayerWizard.interruptCast()` สั่งล้าง |
 | ตัวคูณและค่าตัดของ Tier | `Tier` | |
 | คำบนการ์ด 3 ใบ + การสุ่มใหม่ | `SpellDeck` | HUD อ่าน `hand()` |
-| "ผู้เล่นกำลังพิมพ์หน้าที่อะไร" | `SpellDeck.guessRole` | ทั้ง Auror และ Dark Wizard ใช้ตัวนี้ผ่าน `DuelView` |
+| "ผู้เล่นกำลังพิมพ์หน้าที่อะไร" | `SpellDeck.guessRole` | HUD ใช้ไฮไลต์การ์ด |
+| ช่วงของรอบ + การ์ดที่ผู้เล่นล็อก | `GameWorld` | HUD อ่านผ่าน `draw` |
+| ใบไหนชนะใบไหน | `SpellRole.beatenBy` | Auror ใช้เลือกการ์ด |
 | cast bar ของบอท | `BotWizard.cast` | HUD อ่าน `progress()` และ `role()` |
 | HP + โล่ | `Duelist` | `GameWorld.resolveHit` เป็นคนเรียก `takeHit` |
-| กติกาว่าโดนแล้วเกิดอะไร (§5.3) | `GameWorld.resolveHit` **ที่เดียว** | |
+| กติกาว่าเปิดไพ่แล้วเกิดอะไร (§5.4) | `GameWorld.resolveRound` + `resolveHit` **ที่เดียว** | |
 | stat ของบอท | `BotProfile.STATS` | |
 | นิสัยบอท | `BotBrain` แต่ละตัว | |
 
@@ -305,7 +325,7 @@ classDiagram
 | 2D array | `String[][] POOLS`, `int[][] STATS`, `int[][] dp` ใน `Levenshtein` |
 | ArrayList | `projectiles`, `effects` |
 | Inheritance | `Entity → Duelist → PlayerWizard/BotWizard`, `AurorBrain → DarkWizardBrain` |
-| Polymorphism | `brain.decide(...)` (บอท 3 นิสัย), `duelist.interruptCast()` (ผู้เล่นล้างช่องพิมพ์ / บอททิ้ง cast bar), `entity.draw(...)` |
+| Polymorphism | `brain.decide(...)` (บอท 3 นิสัย), `duelist.interruptCast()` (จบรอบ: ผู้เล่นล้างช่องพิมพ์ / บอททิ้ง cast bar), `entity.draw(...)` |
 | Interface/Abstract | `BotBrain`, `Updatable`, `Drawable`, `Runnable` · `abstract Entity/Duelist` |
 | GUI/Event | `GameWindow` (CardLayout), `MenuPanel`/`ResultPanel` (ActionListener), `GamePanel` (KeyListener) |
 | Graphics | `draw(Graphics2D)` ของแต่ละ entity, `Hud` (การ์ด, cast bar, HP bar), `Assets` |
@@ -317,8 +337,8 @@ classDiagram
 |---|---|---|
 | `LevenshteinTest`, `AccuracyGraderTest`, `InputBufferTest`, `ArchitectureTest` | ของเดิม (เปลี่ยน package และเกณฑ์ Tier) | D1 |
 | `SpellDeckTest` | match ได้การ์ดที่ถูก, consume แล้วได้คำใหม่ที่ไม่ซ้ำ, แต่ละแถวใน POOLS มีอย่างน้อย 3 คำ, `guessRole` คืน null ถ้าพิมพ์ไม่ถึง 3 ตัว | D2 |
-| `GameWorldTest` | ทุกแถวใน §5.3 รวมถึงสะท้อน, ทำลายโล่, Fizzle แล้วการ์ดยังอยู่, โดนตีแล้ว buffer ถูกล้าง, WON/LOST | D2 |
-| `BotBrainTest` | Apprentice ร่ายแต่ ATTACK, Auror ตั้งโล่เมื่อ intent = ATTACK, Dark Wizard เปลี่ยนหน้าที่ (seed คงที่) | D3 |
+| `GameWorldTest` | ทุกช่องในตาราง §5.4, Fizzle แล้วการ์ดยังอยู่, วงจรรอบ, `GRACE_TIME`, `EARLY_BONUS`, WON/LOST | D2 |
+| `BotBrainTest` | วงจร `beatenBy`, Apprentice ออก ATTACK ส่วนใหญ่, Auror สวนการ์ดรอบก่อน, เปิดหน้าที่ตอนครึ่งแถบ, Dark Wizard หลอกตามเงื่อนไข, บอทล็อกก่อนหมดรอบเสมอ (seed คงที่) | D3 |
 | `BotProfileTest` | ทุกแถวกว้างเท่ากัน, ค่าบอทตัวหลังเก่งกว่าตัวก่อน | D3 |
 
 ## 12. ถ้าเวลาไม่พอ ให้ตัดตามลำดับนี้
@@ -336,8 +356,9 @@ classDiagram
 |---|---|
 | ปรับ tower defense ต่อ | playtest แล้วไม่สนุก ปัญหา 4 ข้อใน SPEC เป็นปัญหาที่ตัวแนวเกม ไม่ใช่ตัวเลข |
 | แข่งพิมพ์ล้วน (ใครเสร็จก่อนได้ตี) | ไม่มีการตัดสินใจ กลายเป็นเกมฝึกพิมพ์ |
-| Turn-based | ช้า และทำให้หัวข้อ Thread ดูไม่เด่น |
-| Beam Clash เป็น must-have | ต้องเพิ่มโหมดย่อยอีก 1 โหมด ไม่ทันใน 4 วัน จึงย้ายไป nice-to-have |
+| ผลัดกันเดิน (turn-based) | ช้า และทำให้หัวข้อ Thread ดูไม่เด่น (แบบรอบที่ใช้อยู่พิมพ์พร้อมกันแข่งกับเวลา จึงยังมี game thread เดินตลอด) |
+| Real-time ร่ายแข่งกัน | ลองทำแล้ว (branch `duel`) พิมพ์รัวใบเดียวชนะได้ และ Interrupt แทบไม่ได้ใช้ แม้ปรับกติกาและความยาวคำหลายรอบ |
+| Beam Clash | ต้องเพิ่มโหมดย่อยอีก 1 โหมด ไม่ทันใน 4 วัน |
 | บอทต่างกันแค่ตัวเลข | บอททั้ง 3 ตัวจะรู้สึกเหมือนกัน และเสีย polymorphism ที่จะโชว์ในรายงาน |
 | คาถา 3 คำตายตัว | ผู้เล่นพิมพ์คำเดิมซ้ำจนเบื่อ (ปัญหาเดียวกับ tower defense) |
 | เขียน `typing` ใหม่ | ของเดิมใช้กับเกมแนวไหนก็ได้ และมี test ผ่านอยู่แล้ว |

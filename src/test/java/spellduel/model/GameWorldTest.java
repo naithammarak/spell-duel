@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,8 +11,11 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 import spellduel.typing.Tier;
 
-/** กติกาใน DESIGN §5.3 ทุกแถว (เวลาเดินด้วย update(dt) เอง ไม่มี thread) */
+/** กติกาแบบรอบ (DESIGN §5R): ตารางเป่ายิ้งฉุบทุกช่อง + วงจรของรอบ */
 class GameWorldTest {
+
+    private static final int BOT_HP = 60;
+    private static final int PLAYER_HP = PlayerWizard.MAX_HP;
 
     private static GameWorld apprenticeWorld() {
         return new GameWorld(BotProfile.row(0), new ApprenticeBrain(), SpellDeck.standard(new Random(1)));
@@ -32,173 +34,196 @@ class GameWorldTest {
         }
     }
 
-    @Test
-    void attackLowersHpAndCancelsBotCast() {
+    private static String card(GameWorld w, SpellRole role) {
+        return w.deck().hand()[role.ordinal()].text();
+    }
+
+    /** เปิดไพ่ด้วย Great ทั้งคู่ แล้วรอให้ลูกเวท (รวมลูกสะท้อน) ถึงเป้า */
+    private static GameWorld duel(SpellRole player, SpellRole bot) {
+        return duel(player, Tier.GREAT, bot, Tier.GREAT);
+    }
+
+    private static GameWorld duel(SpellRole player, Tier playerTier, SpellRole bot, Tier botTier) {
         GameWorld w = apprenticeWorld();
-        w.bot().startCast(SpellRole.ATTACK, "bombarda maxima");
-        w.playerCasts(SpellRole.ATTACK, Tier.GREAT);
-        run(w, 1.0);
-        assertEquals(60 - 20, w.bot().hp());
-        assertNull(w.bot().cast());
+        w.resolveRound(player, playerTier, bot, botTier);
+        run(w, 1.5);
+        return w;
+    }
+
+    private static void assertHp(GameWorld w, int playerHp, int botHp) {
+        assertEquals(playerHp, w.player().hp(), "HP ผู้เล่น");
+        assertEquals(botHp, w.bot().hp(), "HP บอท");
     }
 
     @Test
-    void attackOnShieldReflectsBackToCaster() {
-        GameWorld w = apprenticeWorld();
-        w.botCasts(SpellRole.SHIELD, Tier.GREAT);
-        w.playerCasts(SpellRole.ATTACK, Tier.GREAT);
-        run(w, 1.5);
-        assertEquals(60, w.bot().hp());
-        assertEquals(PlayerWizard.MAX_HP - 20, w.player().hp());
+    void attackBeatsInterrupt() {
+        assertHp(duel(SpellRole.ATTACK, SpellRole.INTERRUPT), PLAYER_HP, BOT_HP - 20);
+        assertHp(duel(SpellRole.INTERRUPT, SpellRole.ATTACK), PLAYER_HP - 20, BOT_HP);
+    }
+
+    @Test
+    void shieldBeatsAttackByReflecting() {
+        GameWorld w = duel(SpellRole.ATTACK, SpellRole.SHIELD);
+        assertHp(w, PLAYER_HP - 20, BOT_HP);
         assertFalse(w.bot().hasShield(), "โล่ใช้ได้ครั้งเดียว");
+        assertHp(duel(SpellRole.SHIELD, SpellRole.ATTACK), PLAYER_HP, BOT_HP - 20);
     }
 
     @Test
-    void perfectShieldReflectsStronger() {
-        GameWorld w = apprenticeWorld();
-        w.playerCasts(SpellRole.SHIELD, Tier.PERFECT);
-        w.botCasts(SpellRole.ATTACK, Tier.GREAT);
-        run(w, 1.5);
-        assertEquals(PlayerWizard.MAX_HP, w.player().hp());
-        assertEquals(60 - 25, w.bot().hp());
-    }
-
-    @Test
-    void weakShieldStillReflectsButWeakly() {
-        GameWorld w = apprenticeWorld();
-        w.playerCasts(SpellRole.SHIELD, Tier.WEAK);
-        w.botCasts(SpellRole.ATTACK, Tier.GREAT);
-        run(w, 1.5);
-        assertEquals(PlayerWizard.MAX_HP, w.player().hp());
-        assertEquals(60 - 6, w.bot().hp());
-    }
-
-    @Test
-    void interruptBreaksShield() {
-        GameWorld w = apprenticeWorld();
-        w.botCasts(SpellRole.SHIELD, Tier.PERFECT);
-        w.playerCasts(SpellRole.INTERRUPT, Tier.GREAT);
-        run(w, 1.0);
+    void interruptBeatsShield() {
+        GameWorld w = duel(SpellRole.INTERRUPT, SpellRole.SHIELD);
+        assertHp(w, PLAYER_HP, BOT_HP - 20);
         assertFalse(w.bot().hasShield());
-        assertEquals(60 - 5, w.bot().hp());
+        assertHp(duel(SpellRole.SHIELD, SpellRole.INTERRUPT), PLAYER_HP - 20, BOT_HP);
     }
 
     @Test
-    void weakAttackDamagesButDoesNotCut() {
-        GameWorld w = apprenticeWorld();
-        w.bot().startCast(SpellRole.ATTACK, "bombarda maxima");
-        w.playerCasts(SpellRole.ATTACK, Tier.WEAK);
-        run(w, 1.0);
-        assertEquals(60 - 6, w.bot().hp());
-        assertNotNull(w.bot().cast(), "พิมพ์ครึ่งคำ ตัดไม่ได้");
+    void attackVsAttackHitsBoth() {
+        assertHp(duel(SpellRole.ATTACK, SpellRole.ATTACK), PLAYER_HP - 20, BOT_HP - 20);
     }
 
     @Test
-    void interruptCannotCutAttackCast() {
-        GameWorld w = apprenticeWorld();
-        w.bot().startCast(SpellRole.ATTACK, "bombarda maxima");
-        w.playerCasts(SpellRole.INTERRUPT, Tier.PERFECT);
-        run(w, 1.0);
-        assertEquals(SpellRole.ATTACK, w.bot().cast().role());
-        assertEquals(60 - 6, w.bot().hp());
+    void shieldVsShieldDoesNothing() {
+        assertHp(duel(SpellRole.SHIELD, SpellRole.SHIELD), PLAYER_HP, BOT_HP);
     }
 
     @Test
-    void interruptCutsShieldCast() {
-        GameWorld w = apprenticeWorld();
-        w.bot().startCast(SpellRole.SHIELD, "protego maxima");
-        w.playerCasts(SpellRole.INTERRUPT, Tier.GREAT);
-        run(w, 1.0);
-        assertNull(w.bot().cast());
+    void interruptVsInterruptIsLightOnBoth() {
+        assertHp(duel(SpellRole.INTERRUPT, SpellRole.INTERRUPT), PLAYER_HP - 5, BOT_HP - 5);
     }
 
     @Test
-    void weakInterruptStillBreaksShieldButCannotCut() {
-        GameWorld w = apprenticeWorld();
-        w.botCasts(SpellRole.SHIELD, Tier.GREAT);
-        w.bot().startCast(SpellRole.SHIELD, "protego maxima");
-        w.playerCasts(SpellRole.INTERRUPT, Tier.WEAK);
-        run(w, 1.0);
-        assertFalse(w.bot().hasShield());
-        assertNotNull(w.bot().cast());
+    void reflectStrengthFollowsShieldTier() {
+        assertHp(duel(SpellRole.SHIELD, Tier.PERFECT, SpellRole.ATTACK, Tier.GREAT), PLAYER_HP, BOT_HP - 25);
+        assertHp(duel(SpellRole.SHIELD, Tier.WEAK, SpellRole.ATTACK, Tier.GREAT), PLAYER_HP, BOT_HP - 6);
     }
 
     @Test
-    void botInterruptOnlyClearsPlayerTypingShield() {
-        GameWorld w = apprenticeWorld();
-        String attack = w.deck().hand()[SpellRole.ATTACK.ordinal()].text().substring(0, 4);
-        type(w, attack);
-        w.botCasts(SpellRole.INTERRUPT, Tier.GREAT);
-        run(w, 1.0);
-        assertEquals(attack, w.typed(), "กำลังพิมพ์ Attack อยู่ Interrupt ตัดไม่ได้");
-
-        GameWorld w2 = apprenticeWorld();
-        String shield = w2.deck().hand()[SpellRole.SHIELD.ordinal()].text().substring(0, 4);
-        type(w2, shield);
-        w2.botCasts(SpellRole.INTERRUPT, Tier.GREAT);
-        run(w2, 1.0);
-        assertEquals("", w2.typed());
+    void noLockMeansYouJustGetHit() {
+        assertHp(duel(null, null, SpellRole.INTERRUPT, Tier.GREAT), PLAYER_HP - 20, BOT_HP);
     }
 
     @Test
-    void shieldExpiresAfterDuration() {
-        GameWorld w = apprenticeWorld();
-        w.playerCasts(SpellRole.SHIELD, Tier.GREAT);
-        run(w, Shield.DURATION - 0.1);
-        assertTrue(w.player().hasShield());
-        run(w, 0.2);
-        assertFalse(w.player().hasShield());
-    }
-
-    @Test
-    void fizzleKeepsCard() {
+    void fizzleKeepsCardAndAllowsRetry() {
         GameWorld w = apprenticeWorld();
         Incantation[] before = w.deck().hand();
         type(w, "zzzzzzzzzzzzzzz");
         assertEquals(Tier.FIZZLE, w.castTyped().tier());
         assertArrayEquals(before, w.deck().hand());
-        assertEquals(0, w.projectileCount());
-    }
-
-    @Test
-    void castConsumesCardAndGivesNewWord() {
-        GameWorld w = apprenticeWorld();
-        Incantation attack = w.deck().hand()[SpellRole.ATTACK.ordinal()];
-        type(w, attack.text());
-        assertEquals(Tier.PERFECT, w.castTyped().tier());
-        Incantation next = w.deck().hand()[SpellRole.ATTACK.ordinal()];
-        assertNotEquals(attack.text(), next.text());
-        assertEquals(SpellRole.ATTACK, next.role());
-        assertEquals(1, w.projectileCount());
-        assertEquals("", w.typed(), "Enter แล้วช่องพิมพ์ว่าง");
-    }
-
-    @Test
-    void typoMakesSpellWeaker() {
-        GameWorld w = apprenticeWorld();
-        String word = w.deck().hand()[SpellRole.ATTACK.ordinal()].text();
-        type(w, word.substring(0, word.length() - 1)); // ขาดตัวสุดท้าย
-        assertEquals(Tier.GREAT, w.castTyped().tier());
+        assertNull(w.lockedRole());
+        type(w, card(w, SpellRole.SHIELD));
+        w.castTyped();
+        assertEquals(SpellRole.SHIELD, w.lockedRole());
     }
 
     @Test
     void lessThanHalfAWordFizzles() {
         GameWorld w = apprenticeWorld();
-        Incantation[] before = w.deck().hand();
-        String word = before[SpellRole.ATTACK.ordinal()].text();
+        String word = card(w, SpellRole.ATTACK);
         type(w, word.substring(0, word.length() / 2 - 1));
         assertEquals(Tier.FIZZLE, w.castTyped().tier());
-        assertArrayEquals(before, w.deck().hand());
     }
 
     @Test
-    void getHitClearsTypedText() {
+    void castLocksCardAndGivesNewWord() {
         GameWorld w = apprenticeWorld();
-        type(w, "bom");
-        w.botCasts(SpellRole.ATTACK, Tier.GREAT);
-        run(w, 1.0);
+        String attack = card(w, SpellRole.ATTACK);
+        type(w, attack);
+        assertEquals(Tier.PERFECT, w.castTyped().tier());
+        assertEquals(SpellRole.ATTACK, w.lockedRole());
+        assertNotEquals(attack, card(w, SpellRole.ATTACK));
+        assertEquals("", w.typed(), "Enter แล้วช่องพิมพ์ว่าง");
+    }
+
+    @Test
+    void cannotTypeAfterLocking() {
+        GameWorld w = apprenticeWorld();
+        type(w, card(w, SpellRole.ATTACK));
+        w.castTyped();
+        type(w, "abc");
         assertEquals("", w.typed());
-        assertEquals(PlayerWizard.MAX_HP - 20, w.player().hp());
+    }
+
+    @Test
+    void roundEndsEarlyWhenBothLocked() {
+        GameWorld w = apprenticeWorld();
+        type(w, card(w, SpellRole.ATTACK));
+        w.castTyped();
+        run(w, w.bot().cast().duration() + 0.1);
+        assertEquals(GameWorld.Phase.REVEAL, w.phase());
+    }
+
+    @Test
+    void roundEndsShortlyAfterBotLocks() {
+        GameWorld w = apprenticeWorld();
+        run(w, w.bot().cast().duration() + 0.1);
+        assertEquals(GameWorld.Phase.TYPING, w.phase(), "บอทล็อกแล้ว แต่ยังเหลือเวลาอีกนิด");
+        run(w, GameWorld.GRACE_TIME);
+        assertEquals(GameWorld.Phase.REVEAL, w.phase());
+    }
+
+    /** บอทที่ออกการ์ดใบเดียวตลอด ใช้จัดฉากทั้งเส้นทางจริงตั้งแต่พิมพ์จนเปิดไพ่ */
+    private static GameWorld worldAgainst(SpellRole botRole) {
+        return new GameWorld(BotProfile.row(0), view -> botRole, SpellDeck.standard(new Random(1)));
+    }
+
+    private static void runUntilReveal(GameWorld w) {
+        while (w.phase() == GameWorld.Phase.TYPING) {
+            w.update(1.0 / 60);
+        }
+    }
+
+    @Test
+    void lockingBeforeBotRevealsHitsHarder() {
+        GameWorld w = worldAgainst(SpellRole.INTERRUPT);
+        type(w, card(w, SpellRole.ATTACK));
+        w.castTyped();
+        assertTrue(w.lockedEarly());
+        runUntilReveal(w);
+        run(w, 1.0);
+        assertEquals(BOT_HP - 38, w.bot().hp(), "20 × 1.25 (PERFECT) × 1.5");
+    }
+
+    @Test
+    void lockingAfterBotRevealsGetsNoBonus() {
+        GameWorld w = worldAgainst(SpellRole.INTERRUPT);
+        run(w, w.bot().cast().duration() * 0.6);
+        type(w, card(w, SpellRole.ATTACK));
+        w.castTyped();
+        assertFalse(w.lockedEarly());
+        runUntilReveal(w);
+        run(w, 1.0);
+        assertEquals(BOT_HP - 25, w.bot().hp());
+    }
+
+    @Test
+    void earlyShieldReflectsHarder() {
+        GameWorld w = worldAgainst(SpellRole.ATTACK);
+        type(w, card(w, SpellRole.SHIELD));
+        w.castTyped();
+        runUntilReveal(w);
+        assertEquals(GameWorld.EARLY_BONUS, w.player().shield().bonus());
+    }
+
+    @Test
+    void timeoutSubmitsWhatWasTyped() {
+        GameWorld w = apprenticeWorld();
+        type(w, card(w, SpellRole.INTERRUPT));
+        run(w, GameWorld.ROUND_TIME + 0.1);
+        assertEquals(GameWorld.Phase.REVEAL, w.phase());
+        assertEquals(SpellRole.INTERRUPT, w.lockedRole());
+    }
+
+    @Test
+    void nextRoundStartsCleanAfterReveal() {
+        GameWorld w = apprenticeWorld();
+        w.resolveRound(SpellRole.SHIELD, Tier.GREAT, SpellRole.SHIELD, Tier.GREAT);
+        assertTrue(w.player().hasShield());
+        run(w, GameWorld.REVEAL_TIME + 0.1);
+        assertEquals(GameWorld.Phase.TYPING, w.phase());
+        assertEquals(2, w.round());
+        assertFalse(w.player().hasShield(), "โล่อยู่ได้รอบเดียว");
+        assertTrue(w.bot().isCasting());
     }
 
     @Test
@@ -212,8 +237,8 @@ class GameWorldTest {
     void wonWhenBotHpZero() {
         GameWorld w = apprenticeWorld();
         for (int i = 0; i < 3; i++) { // 25 × 3 ≥ 60
-            w.playerCasts(SpellRole.ATTACK, Tier.PERFECT);
-            run(w, 1.0);
+            w.resolveRound(SpellRole.ATTACK, Tier.PERFECT, SpellRole.INTERRUPT, Tier.GREAT);
+            run(w, 2.0);
         }
         assertEquals(GameWorld.Status.WON, w.status());
         assertTrue(w.stats().won());
@@ -223,28 +248,10 @@ class GameWorldTest {
     void lostWhenPlayerHpZero() {
         GameWorld w = apprenticeWorld();
         for (int i = 0; i < 4; i++) { // 25 × 4 = 100
-            w.botCasts(SpellRole.ATTACK, Tier.PERFECT);
-            run(w, 1.0);
+            w.resolveRound(null, null, SpellRole.ATTACK, Tier.PERFECT);
+            run(w, 2.0);
         }
         assertEquals(GameWorld.Status.LOST, w.status());
         assertFalse(w.stats().won());
-    }
-
-    @Test
-    void aurorShieldsWhenPlayerStartsTypingAttack() {
-        GameWorld w = new GameWorld(BotProfile.row(1), new AurorBrain(), SpellDeck.standard(new Random(1)));
-        String attack = w.deck().hand()[SpellRole.ATTACK.ordinal()].text();
-        type(w, attack.substring(0, 3));
-        run(w, BotWizard.START_DELAY + BotProfile.row(1).reaction() + 0.1);
-        assertEquals(SpellRole.SHIELD, w.bot().cast().role());
-    }
-
-    @Test
-    void botCastFinishesAndHitsPlayer() {
-        GameWorld w = apprenticeWorld();
-        BotProfile p = BotProfile.row(0);
-        // พักตอนเริ่ม + reaction + ร่ายคำที่ยาวที่สุด + projectile บิน
-        run(w, BotWizard.START_DELAY + p.reaction() + 18 / p.cps() + 1.0);
-        assertTrue(w.player().hp() < PlayerWizard.MAX_HP);
     }
 }

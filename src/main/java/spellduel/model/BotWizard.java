@@ -4,18 +4,17 @@ import java.util.Random;
 import spellduel.typing.Tier;
 
 /**
- * บอท (ขวาจอ) ร่ายผ่าน cast bar: ว่าง → พัก reaction วินาที → ถามสมองว่าร่ายอะไร → ร่ายจนเต็มแถบ
+ * บอท (ขวาจอ) ต้นรอบถามสมองว่าจะออกอะไร แล้วร่ายจนเต็มแถบ = ล็อกการ์ด
  * ค่าตัวเลขมาจาก BotProfile ส่วนนิสัยมาจาก BotBrain
  */
 class BotWizard extends Duelist {
 
-    /** เวลาพักเพิ่มตอนเริ่มดวล ให้ผู้เล่นได้อ่านการ์ดก่อน */
-    static final double START_DELAY = 1.5;
+    /** บอทต้องล็อกก่อนหมดรอบเสมอ คำยาวของบอทช้าจึงถูกจำกัดเวลาไว้ */
+    static final double MAX_CAST = GameWorld.ROUND_TIME - 0.3;
 
     private final BotProfile profile;
     private final BotBrain brain;
     private Cast cast;
-    private double idle = -START_DELAY;
 
     BotWizard(double x, double y, BotProfile profile, BotBrain brain) {
         super(profile.name(), profile.hp(), x, y, -1, profile.robe());
@@ -33,34 +32,31 @@ class BotWizard extends Duelist {
     }
 
     void startCast(SpellRole role, String word) {
-        cast = new Cast(role, word, profile.castTime(word));
+        double duration = Math.min(profile.reaction() + profile.castTime(word), MAX_CAST);
+        cast = new Cast(role, word, duration);
     }
 
-    /**
-     * เรียกทุก tick จาก GameWorld
-     * @return Cast ที่ร่ายเสร็จใน tick นี้ (GameWorld จะปล่อยคาถา) หรือ null
-     */
-    Cast think(double dt, DuelView view, Random rnd) {
-        if (cast == null) {
-            idle += dt;
-            if (idle >= profile.reaction()) {
-                SpellRole role = brain.decide(view);
-                startCast(role, SpellDeck.randomWord(role, rnd));
-            }
-            return null;
+    /** ต้นรอบ: ถามสมองแล้วเริ่มร่าย */
+    void startRound(DuelView view, Random rnd) {
+        SpellRole role = brain.decide(view);
+        startCast(role, SpellDeck.randomWord(role, rnd));
+    }
+
+    /** เรียกทุก tick ระหว่างรอบพิมพ์ */
+    void think(double dt, DuelView view, Random rnd) {
+        if (cast == null || cast.isDone()) {
+            return;
         }
         SpellRole change = brain.duringCast(view, cast);
         if (change != null && change != cast.role()) {
             cast.switchTo(change, SpellDeck.randomWord(change, rnd));
         }
         cast.advance(dt);
-        if (cast.isDone()) {
-            Cast done = cast;
-            cast = null;
-            idle = 0;
-            return done;
-        }
-        return null;
+    }
+
+    /** ร่ายเต็มแถบแล้ว = ล็อกการ์ด */
+    boolean isLocked() {
+        return cast != null && cast.isDone();
     }
 
     /**
@@ -75,20 +71,14 @@ class BotWizard extends Duelist {
         return rnd.nextBoolean() ? Tier.GOOD : Tier.WEAK;
     }
 
-    /** โดนตัด: cast bar หาย แล้วต้องพักใหม่ */
+    /** จบรอบ: cast bar หาย */
     @Override
     void interruptCast() {
         cast = null;
-        idle = 0;
     }
 
     @Override
     boolean isCasting() {
         return cast != null;
-    }
-
-    @Override
-    SpellRole castingRole() {
-        return cast == null ? null : cast.role();
     }
 }

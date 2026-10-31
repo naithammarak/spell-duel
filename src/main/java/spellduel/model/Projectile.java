@@ -25,8 +25,8 @@ class Projectile extends Entity {
     }
 
     /** ยิงจากปลายไม้ของผู้ร่าย */
-    static Projectile fire(Duelist caster, Duelist target, SpellRole role, Tier tier) {
-        double power = role.base() * tier.multiplier();
+    static Projectile fire(Duelist caster, Duelist target, SpellRole role, Tier tier, double scale) {
+        double power = role.base() * tier.multiplier() * scale;
         return new Projectile(caster.wandX(), caster.wandY(), caster, target, role, power, tier);
     }
 
@@ -46,14 +46,10 @@ class Projectile extends Entity {
         return power;
     }
 
-    /** ต้องแม่นถึงจะตัด cast ได้: GREAT/PERFECT เท่านั้น (กันการพิมพ์ครึ่งคำรัว ๆ) */
-    boolean canCut() {
-        return tier == Tier.GREAT || tier == Tier.PERFECT;
-    }
-
     /** สะท้อน: ลูกใหม่ที่บินกลับไปหาคนร่าย แรงตาม tier ของโล่ที่สะท้อน */
-    Projectile reflected(Tier shieldTier) {
-        return new Projectile(x, y, target, caster, role, power * shieldTier.multiplier(), shieldTier);
+    Projectile reflected(Shield shield) {
+        double reflectedPower = power * shield.tier().multiplier() * shield.bonus();
+        return new Projectile(x, y, target, caster, role, reflectedPower, shield.tier());
     }
 
     /** บินถึงตัวเป้าแล้วหรือยัง */

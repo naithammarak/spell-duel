@@ -9,15 +9,13 @@ class PlayerWizard extends Duelist {
     static final int MAX_HP = 100;
 
     private final InputBuffer input;
-    private final SpellDeck deck;
 
-    PlayerWizard(double x, double y, InputBuffer input, SpellDeck deck) {
+    PlayerWizard(double x, double y, InputBuffer input) {
         super("คุณ", MAX_HP, x, y, +1, new Color(70, 90, 200));
         this.input = input;
-        this.deck = deck;
     }
 
-    /** โดนตัด: ข้อความที่พิมพ์ค้างไว้หาย */
+    /** จบรอบ: ข้อความที่พิมพ์ค้างไว้หาย */
     @Override
     void interruptCast() {
         input.clear();
@@ -26,11 +24,5 @@ class PlayerWizard extends Duelist {
     @Override
     boolean isCasting() {
         return !input.isEmpty();
-    }
-
-    /** เดาจากสิ่งที่พิมพ์ (นิยามเดียวกับที่บอทใช้อ่านทาง) */
-    @Override
-    SpellRole castingRole() {
-        return deck.guessRole(input.text());
     }
 }

@@ -11,10 +11,16 @@ class Shield implements Updatable {
     static final double DURATION = 3.0;
 
     private final Tier tier;
+    private final double bonus; // ตัวคูณแรงลูกสะท้อน (ล็อกก่อนเปิดไพ่ได้เพิ่ม)
     private double remaining = DURATION;
 
-    Shield(Tier tier) {
+    Shield(Tier tier, double bonus) {
         this.tier = tier;
+        this.bonus = bonus;
+    }
+
+    double bonus() {
+        return bonus;
     }
 
     Tier tier() {

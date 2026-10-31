@@ -1,18 +1,19 @@
 package spellduel.model;
 
 /**
- * บอส: ตัดสินใจเหมือน Auror (สืบทอดมา) แต่ชอบ "หลอก"
- * พอร่ายเกินครึ่งทาง มีโอกาส 30% (สุ่มครั้งเดียวต่อ cast) ที่จะเปลี่ยนเป็นหน้าที่อื่น
+ * บอส: เลือกการ์ดเหมือน Auror (สืบทอดมา) แต่ชอบ "หลอก"
+ * หลังเปิดหน้าที่ตอนครึ่งแถบแล้ว พอถึง 3/4 ทาง มีโอกาส 30% (สุ่มครั้งเดียวต่อ cast) ที่จะหลอกเปลี่ยนเป็นหน้าที่อื่น
  */
 class DarkWizardBrain extends AurorBrain {
 
     static final int FEINT_CHANCE = 30;
+    static final double FEINT_AT = 0.75;
 
     private Cast lastRolled; // cast ที่สุ่มไปแล้ว จะได้ไม่สุ่มซ้ำ
 
     @Override
     public SpellRole duringCast(DuelView view, Cast cast) {
-        if (cast == lastRolled || cast.progress() < 0.5) {
+        if (cast == lastRolled || cast.progress() < FEINT_AT) {
             return null;
         }
         lastRolled = cast;

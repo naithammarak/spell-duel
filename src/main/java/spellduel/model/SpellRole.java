@@ -9,7 +9,7 @@ import java.awt.Color;
 enum SpellRole {
     ATTACK("Attack", 20, 1000, new Color(255, 110, 60)),
     SHIELD("Shield", 0, 0, new Color(90, 180, 255)),
-    INTERRUPT("Interrupt", 5, 1600, new Color(250, 220, 70));
+    INTERRUPT("Interrupt", 20, 1600, new Color(250, 220, 70));
 
     private final String label;
     private final int base;
@@ -21,6 +21,15 @@ enum SpellRole {
         this.base = base;
         this.projectileSpeed = projectileSpeed;
         this.color = color;
+    }
+
+    /** การ์ดที่ชนะการ์ดใบนี้ */
+    SpellRole beatenBy() {
+        return switch (this) {
+            case ATTACK -> SHIELD;
+            case SHIELD -> INTERRUPT;
+            case INTERRUPT -> ATTACK;
+        };
     }
 
     String label() {
