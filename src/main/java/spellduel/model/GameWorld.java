@@ -328,6 +328,26 @@ public class GameWorld {
 
     // ---------------------------------------------------------------- วาด / สถานะ
 
+    /** ฉากหลังหน้าเมนู: เดินแค่เวลากับท่าทางตัวละคร ไม่เริ่มการดวล */
+    public synchronized void idle(double dt) {
+        clock += dt;
+        player.update(dt);
+        bot.update(dt);
+    }
+
+    /** ฉากหลังหน้าเมนู: นักเวทสองฝ่ายยิงสายฟ้าปะทะกันกลางสนาม ไม่มี HUD */
+    public synchronized void drawMenuScene(Graphics2D g, Assets assets) {
+        Hud.drawArena(g, clock);
+        player.draw(g, assets);
+        bot.draw(g, assets);
+        double y = player.wandY();
+        long seed = (long) (clock * Projectile.FLICKER_PER_SECOND);
+        Projectile.drawBolt(g, player.wandX(), WIDTH / 2.0, y, 7, SpellRole.ATTACK.color(), seed);
+        Projectile.drawBolt(g, bot.wandX(), WIDTH / 2.0, y, 7, SpellRole.INTERRUPT.color(), seed + 1);
+        double pulse = 34 + 8 * Math.sin(clock * 9);
+        Hud.glow(g, WIDTH / 2.0, y, pulse, Color.WHITE);
+    }
+
     public synchronized void draw(Graphics2D g, Assets assets) {
         Hud.drawArena(g, clock);
         player.draw(g, assets);

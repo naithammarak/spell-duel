@@ -14,7 +14,7 @@ class Projectile extends Entity {
     // รูปร่างสายฟ้า
     private static final double SEGMENT = 26;
     private static final double AMPLITUDE = 17;
-    private static final int FLICKER_PER_SECOND = 24;
+    static final int FLICKER_PER_SECOND = 24;
 
     private final Duelist caster;
     private final Duelist target;
@@ -80,27 +80,31 @@ class Projectile extends Entity {
         age += dt;
     }
 
-    /** สายฟ้าจากจุดเริ่มถึงหัวลูกเวท: วาดเส้นหยัก 3 ชั้น นอกจาง กลางสี ในขาว */
     @Override
     public void draw(Graphics2D g, Assets assets) {
-        int width = role == SpellRole.ATTACK ? 7 : 5;
-        Color c = role.color();
-        // seed เปลี่ยนตามเวลา สายฟ้าเลยกระพริบ ใช้ Random ของตัวเองเพื่อไม่กระทบผลเกม
-        Random jitter = new Random((long) (age * FLICKER_PER_SECOND) + (long) startX);
+        // seed เปลี่ยนตามเวลา สายฟ้าเลยกระพริบ
+        long seed = (long) (age * FLICKER_PER_SECOND) + (long) startX;
+        drawBolt(g, startX, x, y, role == SpellRole.ATTACK ? 7 : 5, role.color(), seed);
+    }
+
+    /** สายฟ้าเส้นหยักซ้อน 3 ชั้น นอกจาง กลางสี ในขาว ใช้ Random ของตัวเองเพื่อไม่กระทบผลเกม */
+    static void drawBolt(Graphics2D g, double fromX, double toX, double y, int width, Color c, long seed) {
+        Random jitter = new Random(seed);
+        int side = toX > fromX ? 1 : -1;
         Path2D bolt = new Path2D.Double();
-        bolt.moveTo(startX, y);
-        int steps = Math.max(2, (int) (Math.abs(x - startX) / SEGMENT));
+        bolt.moveTo(fromX, y);
+        int steps = Math.max(2, (int) (Math.abs(toX - fromX) / SEGMENT));
         for (int i = 1; i < steps; i++) {
-            double px = startX + (x - startX) * i / steps;
+            double px = fromX + (toX - fromX) * i / steps;
             double py = y + (jitter.nextDouble() - 0.5) * 2 * AMPLITUDE;
             bolt.lineTo(px, py);
             if (i % 3 == 0) {
                 // แขนงเล็ก ๆ แตกออกจากเส้นหลัก
-                bolt.lineTo(px + direction * SEGMENT, py + (jitter.nextDouble() - 0.5) * 3 * AMPLITUDE);
+                bolt.lineTo(px + side * SEGMENT, py + (jitter.nextDouble() - 0.5) * 3 * AMPLITUDE);
                 bolt.moveTo(px, py);
             }
         }
-        bolt.lineTo(x, y);
+        bolt.lineTo(toX, y);
 
         Stroke before = g.getStroke();
         g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 70));
@@ -113,6 +117,6 @@ class Projectile extends Entity {
         g.setStroke(new BasicStroke(Math.max(1, width / 3f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g.draw(bolt);
         g.setStroke(before);
-        Hud.glow(g, x, y, width * 4, c);
+        Hud.glow(g, toX, y, width * 4, c);
     }
 }

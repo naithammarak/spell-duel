@@ -48,6 +48,8 @@ public synchronized void update(double dt)          // game thread
 public synchronized void draw(Graphics2D g, Assets assets) // EDT
 public synchronized Status status()                 // PLAYING / WON / LOST
 public synchronized GameStats stats()               // record ที่แก้ไม่ได้ ใช้ในหน้า Result
+public synchronized void idle(double dt)             // EDT: เดินฉากหลังหน้าเมนู
+public synchronized void drawMenuScene(Graphics2D g, Assets assets) // EDT: ฉากหลังหน้าเมนู
 public static final int PLAYER_MAX_HP = 100;
 ```
 

@@ -92,7 +92,7 @@
 ### ui
 - `Main`: จุดเริ่มโปรแกรม เปิดหน้าต่างผ่าน `invokeLater`
 - `GameWindow`: หน้าต่างหลัก สลับหน้าด้วย `CardLayout` เป็นเจ้าของการเล่น 1 รอบ (`startRun`, `nextDuel`) และบันทึกสถิติด้วย `Preferences`
-- `MenuPanel`, `ResultPanel`: หน้าเมนูและหน้าผล ใช้ปุ่มกับ `ActionListener` แสดงสถิติสูงสุด
+- `MenuPanel`, `ResultPanel`: หน้าเมนูและหน้าผล ใช้ปุ่มกับ `ActionListener` แสดงสถิติสูงสุด · `MenuPanel` ใช้ `GameWorld` ตัวหนึ่งเป็นฉากหลังที่ขยับด้วย Swing `Timer` และปุ่ม `MagicButton` สืบทอด `JButton` เพื่อวาดพื้นปุ่มเอง
 - `GamePanel`: รับคีย์บอร์ดด้วย `KeyListener` แล้ววาดจอ โดยวาดลงรูป `frame` ก่อนแล้วแปะขึ้นจอทีเดียว เหมือนวาดบนกระดาษทดแล้วค่อยติดบนกระดาน แทนการเขียนบนกระดานทีละเส้น
 - `GameLoop`: game thread ใช้ `volatile paused` สำหรับหยุดเกม
 
