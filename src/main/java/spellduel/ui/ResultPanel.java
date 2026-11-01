@@ -13,20 +13,21 @@ import javax.swing.JPanel;
 import spellduel.model.GameStats;
 import spellduel.typing.Tier;
 
-/** หน้าสรุปผล: ชนะ → Next · แพ้ → Retry · ชนะตัวสุดท้าย → จบเกม */
+/** หน้าสรุปผล: ชนะ → ด่านถัดไป · แพ้ → เริ่มใหม่ตั้งแต่ด่าน 1 */
 public class ResultPanel extends JPanel {
 
     private final JButton nextButton;
     private final JButton retryButton;
     private GameStats stats;
+    private int best;
 
     public ResultPanel(GameWindow window) {
         setLayout(new GridBagLayout());
         JPanel column = new JPanel();
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        nextButton = MenuPanel.makeButton("บอทตัวถัดไป", e -> window.nextDuel());
-        retryButton = MenuPanel.makeButton("ลองใหม่", e -> window.retryDuel());
+        nextButton = MenuPanel.makeButton("ด่านถัดไป", e -> window.nextDuel());
+        retryButton = MenuPanel.makeButton("เริ่มใหม่ด่าน 1", e -> window.startRun());
         column.add(Box.createVerticalStrut(320));
         column.add(nextButton);
         column.add(retryButton);
@@ -35,9 +36,11 @@ public class ResultPanel extends JPanel {
         add(column);
     }
 
-    public void setStats(GameStats stats) {
+    public void setStats(GameStats stats, int best) {
         this.stats = stats;
-        nextButton.setVisible(stats.won() && stats.hasNextBot());
+        this.best = best;
+        nextButton.setText("ด่านถัดไป (HP " + stats.nextHp() + ")");
+        nextButton.setVisible(stats.won());
         retryButton.setVisible(!stats.won());
         revalidate();
         repaint();
@@ -53,14 +56,7 @@ public class ResultPanel extends JPanel {
         if (stats == null) {
             return;
         }
-        String title;
-        if (!stats.won()) {
-            title = "แพ้ " + stats.botName() + "...";
-        } else if (stats.hasNextBot()) {
-            title = "ชนะ " + stats.botName() + "!";
-        } else {
-            title = "จบเกม! ชนะครบทั้ง " + (stats.botLevel() + 1) + " ตัว";
-        }
+        String title = (stats.won() ? "ชนะ " : "แพ้ ") + stats.botName() + (stats.won() ? "!" : "...");
         g2.setFont(new Font(Font.DIALOG, Font.BOLD, 52));
         g2.setColor(stats.won() ? new Color(255, 215, 90) : new Color(230, 80, 80));
         center(g2, title, 120);
@@ -77,6 +73,8 @@ public class ResultPanel extends JPanel {
         }
         g2.setColor(new Color(200, 190, 255));
         center(g2, tiers.toString().trim(), 245);
+        g2.setColor(new Color(255, 215, 90));
+        center(g2, String.format("ผ่านแล้ว %d ด่าน   ·   สถิติสูงสุด %d ด่าน", stats.levelsCleared(), best), 283);
     }
 
     private void center(Graphics2D g, String text, int y) {

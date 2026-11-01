@@ -10,9 +10,10 @@ class PlayerWizard extends Duelist {
 
     private final InputBuffer input;
 
-    PlayerWizard(double x, double y, InputBuffer input) {
+    PlayerWizard(double x, double y, InputBuffer input, int startHp) {
         super("คุณ", MAX_HP, x, y, +1, new Color(70, 90, 200));
         this.input = input;
+        this.hp = startHp;
     }
 
     /** จบรอบ: ข้อความที่พิมพ์ค้างไว้หาย */

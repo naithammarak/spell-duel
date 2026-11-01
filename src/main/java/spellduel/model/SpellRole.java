@@ -7,9 +7,9 @@ import java.awt.Color;
  * Attack ชนะ Interrupt · Interrupt ชนะ Shield · Shield ชนะ Attack
  */
 enum SpellRole {
-    ATTACK("Attack", 20, 1000, new Color(255, 110, 60)),
+    ATTACK("Attack", 20, 1000, new Color(60, 235, 110)),
     SHIELD("Shield", 0, 0, new Color(90, 180, 255)),
-    INTERRUPT("Interrupt", 20, 1600, new Color(250, 220, 70));
+    INTERRUPT("Interrupt", 20, 1600, new Color(255, 55, 65));
 
     private final String label;
     private final int base;

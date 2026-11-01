@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 **Spell Duel** is a 1v1 typing wizard duel against bots: a 2D pixel side-view Java Swing mini project for an OOP course. The student works solo. On 27 Oct 2026 it was re-scoped from a tower-defense game. The old versions stay reachable via tags `td-prototype` (master) and `army-prototype` (proto-army, see `SPEC-ARMY.md`). Do not extend them.
 Deadlines: feature freeze **30 Oct** · first submission (PDF + code) **3 Nov** · presentation **4 Nov** (10 min) · final submission **7 Nov 2026 16:00**. The final submission is .jar + source + GitHub link + report PDF on Classroom.
-`SPEC.md` is the source of truth for features and day-by-day milestones (D1–D10). `DESIGN.md` is the approved architecture: round-based duel rules §5, bots §6, ownership table §9, class diagram. Read both before changing structure. If code must deviate from DESIGN.md, update DESIGN.md first. Where README.md disagrees with SPEC.md, SPEC.md wins (README is updated in D4). `docs/` is gitignored and holds only reference material.
+`SPEC.md` is the source of truth for features and day-by-day milestones (D1–D10). `DESIGN.md` is the approved architecture: round-based instant-cast duel rules §5, bots §6, ownership table §9, class diagram. Read both before changing structure. If code must deviate from DESIGN.md, update DESIGN.md first. Where README.md disagrees with SPEC.md, SPEC.md wins (README is updated in D4). `docs/` is gitignored and holds only reference material.
 
 **Migration in progress (D1):** code may still be in package `spelldefender` with tower-defense classes. Target layout:
 - Package `spellduel`.
@@ -31,9 +31,10 @@ Windows uses `test.bat` / `run.bat` / `build.bat`. CI (`.github/workflows/build.
   1. `InputBuffer` returns the text.
   2. `SpellDeck.match` finds the closest of the 3 hand cards (Levenshtein; on a tie the shorter one).
   3. `AccuracyGrader.grade` returns a `Tier`.
-  4. FIZZLE keeps the card and the player may retype. Otherwise `deck.consume(card)` redraws that card's word and the role and tier are locked until the reveal.
-- **Rounds**: `GameWorld.phase` goes TYPING → REVEAL → next round. Both sides type at once; the round ends when both are locked, `GRACE_TIME` after the bot locks, or at `ROUND_TIME`. Shields last one round.
-- **Reveal rules** (rock-paper-scissors table, reflect, break shield, early-lock bonus) live only in `GameWorld.resolveRound` and `resolveHit`. `interruptCast()` just ends the round: it clears the player's `InputBuffer` or drops the bot's `Cast`.
+  4. FIZZLE keeps the card and the player may retype. Otherwise `deck.consume(card)` redraws that card's word and `release` applies the spell at once. One cast per round.
+- **Rounds**: `GameWorld.phase` goes COUNTDOWN → TYPING → REVEAL → next round. Both sides type at once; typing ends when both have cast, `GRACE_TIME` after the bot casts, or at `ROUND_TIME`. Shields last one round.
+- **Run**: `GameWindow` owns the endless ladder. HP carries over (`GameStats.nextHp`), a loss restarts at level 0, and `BotProfile.forLevel` builds levels past the table.
+- **Spell rules** (rock-paper-scissors, reflect, break shield, cut) live only in `GameWorld.release` and `resolveHit`, decided when the bolt arrives. `interruptCast()` clears the player's `InputBuffer` or drops the bot's `Cast`.
 - **Bots** = `BotWizard` + `BotProfile` (a row of `int[][] STATS`) + `BotBrain` (Apprentice / Auror / DarkWizard extends Auror). Brains see the duel through the read-only `DuelView`; Auror and Dark Wizard read `lastPlayerRole`. "What is the player typing" has one definition, `SpellDeck.guessRole`, used by the HUD to highlight a card.
 - The 2D arrays `String[][] POOLS` (spell words per role), `int[][] STATS` and `Levenshtein`'s `int[][] dp` exist on purpose for the course's 2D-array topic.
 - **Focus**: call `requestFocusInWindow()` after every card switch. `GamePanel` calls `setFocusTraversalKeysEnabled(false)`.

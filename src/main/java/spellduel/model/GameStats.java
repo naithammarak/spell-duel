@@ -10,9 +10,17 @@ public record GameStats(boolean won, int botLevel, String botName, int hpLeft, d
         tierCounts = tierCounts.clone();
     }
 
-    /** ยังมีบอทตัวถัดไปให้ไต่อีกไหม */
-    public boolean hasNextBot() {
-        return botLevel < GameWorld.BOT_COUNT - 1;
+    /** ชนะแล้วฟื้น HP เท่านี้ก่อนขึ้นด่านใหม่ */
+    public static final int HEAL_PER_WIN = 75;
+
+    /** HP ตอนเริ่มด่านถัดไป */
+    public int nextHp() {
+        return Math.min(GameWorld.PLAYER_MAX_HP, hpLeft + HEAL_PER_WIN);
+    }
+
+    /** จำนวนด่านที่ผ่านในการเล่นรอบนี้ */
+    public int levelsCleared() {
+        return won ? botLevel + 1 : botLevel;
     }
 
     /** จำนวนครั้งที่ร่ายได้ระดับนี้ */

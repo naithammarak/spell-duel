@@ -4,13 +4,15 @@ import java.util.Random;
 import spellduel.typing.Tier;
 
 /**
- * บอท (ขวาจอ) ต้นรอบถามสมองว่าจะออกอะไร แล้วร่ายจนเต็มแถบ = ล็อกการ์ด
+ * บอท (ขวาจอ) ต้นรอบถามสมองว่าจะออกอะไร แล้วร่ายจนเต็มแถบ = คาถาทำงานทันที
  * ค่าตัวเลขมาจาก BotProfile ส่วนนิสัยมาจาก BotBrain
  */
 class BotWizard extends Duelist {
 
     /** บอทต้องล็อกก่อนหมดรอบเสมอ คำยาวของบอทช้าจึงถูกจำกัดเวลาไว้ */
     static final double MAX_CAST = GameWorld.ROUND_TIME - 0.3;
+    /** โล่ร่ายเร็วกว่าใบอื่น ไม่งั้น Attack ของคนพิมพ์เร็วจะถึงก่อนโล่ขึ้นทุกรอบ */
+    static final double SHIELD_SPEED = 0.6;
 
     private final BotProfile profile;
     private final BotBrain brain;
@@ -32,7 +34,8 @@ class BotWizard extends Duelist {
     }
 
     void startCast(SpellRole role, String word) {
-        double duration = Math.min(profile.reaction() + profile.castTime(word), MAX_CAST);
+        double typing = profile.castTime(word) * (role == SpellRole.SHIELD ? SHIELD_SPEED : 1);
+        double duration = Math.min(profile.reaction() + typing, MAX_CAST);
         cast = new Cast(role, word, duration);
     }
 
@@ -54,7 +57,7 @@ class BotWizard extends Duelist {
         cast.advance(dt);
     }
 
-    /** ร่ายเต็มแถบแล้ว = ล็อกการ์ด */
+    /** ร่ายเต็มแถบแล้ว */
     boolean isLocked() {
         return cast != null && cast.isDone();
     }

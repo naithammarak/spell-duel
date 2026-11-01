@@ -3,24 +3,18 @@ package spellduel.model;
 import spellduel.typing.Tier;
 
 /**
- * โล่บนตัวนักเวท อยู่ได้ DURATION วินาที (เวลาในเกม) และกันการโจมตีได้ครั้งเดียว
+ * โล่บนตัวนักเวท อยู่จนจบรอบ และกันการโจมตีได้ครั้งเดียว
  * ทุก tier สะท้อน Attack กลับใส่คนตี ยิ่ง tier สูง ลูกสะท้อนยิ่งแรง (ดู GameWorld.resolveHit)
  */
 class Shield implements Updatable {
 
-    static final double DURATION = 3.0;
+    static final double DURATION = GameWorld.ROUND_TIME + GameWorld.REVEAL_TIME;
 
     private final Tier tier;
-    private final double bonus; // ตัวคูณแรงลูกสะท้อน (ล็อกก่อนเปิดไพ่ได้เพิ่ม)
     private double remaining = DURATION;
 
-    Shield(Tier tier, double bonus) {
+    Shield(Tier tier) {
         this.tier = tier;
-        this.bonus = bonus;
-    }
-
-    double bonus() {
-        return bonus;
     }
 
     Tier tier() {

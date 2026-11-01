@@ -6,7 +6,7 @@ package spellduel.model;
  */
 class AurorBrain implements BotBrain {
 
-    static final int COUNTER_CHANCE = 70;
+    static final int COUNTER_CHANCE = 55;
 
     @Override
     public SpellRole decide(DuelView view) {

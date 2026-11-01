@@ -6,8 +6,10 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.image.BufferedImage;
 import javax.swing.JPanel;
 import spellduel.model.Assets;
 import spellduel.model.GameWorld;
@@ -22,6 +24,7 @@ public class GamePanel extends JPanel implements KeyListener {
     private final Assets assets = Assets.load();
     private GameWorld world;
     private GameLoop loop;
+    private BufferedImage frame; // วาดเฟรมลงรูปนี้ก่อน แล้วค่อยแปะขึ้นจอทีเดียว
 
     public GamePanel(GameWindow window) {
         this.window = window;
@@ -33,9 +36,9 @@ public class GamePanel extends JPanel implements KeyListener {
     }
 
     /** เริ่มดวลใหม่กับบอทเลเวลนี้ (สร้าง world และ thread ใหม่ทุกครั้ง = Retry ได้ state สะอาด) */
-    public void startDuel(int botLevel) {
+    public void startDuel(int botLevel, int playerHp) {
         stopGame();
-        world = new GameWorld(botLevel, System.nanoTime());
+        world = new GameWorld(botLevel, playerHp, System.nanoTime());
         loop = new GameLoop(world, this, window::showResult);
         loop.start();
     }
@@ -91,12 +94,20 @@ public class GamePanel extends JPanel implements KeyListener {
         if (world == null) {
             return;
         }
-        Graphics2D g2 = (Graphics2D) g;
+        if (frame == null) {
+            frame = getGraphicsConfiguration().createCompatibleImage(GameWorld.WIDTH, GameWorld.HEIGHT);
+        }
+        // ไล่สีและโปร่งใสที่วาดตรงลงจอช้ามาก (วัดได้ ~60 ms ต่อเฟรม) จึงวาดลงรูปในหน่วยความจำแทน (~5 ms)
+        Graphics2D g2 = frame.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         world.draw(g2, assets);
         if (loop.isPaused()) {
             drawPauseOverlay(g2);
         }
+        g2.dispose();
+        g.drawImage(frame, 0, 0, null);
+        Toolkit.getDefaultToolkit().sync(); // บน Linux ไม่สั่งแล้วภาพจะค้างในคิวจนกระตุก
     }
 
     private void drawPauseOverlay(Graphics2D g) {

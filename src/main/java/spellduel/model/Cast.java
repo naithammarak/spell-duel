@@ -7,7 +7,7 @@ package spellduel.model;
 class Cast {
 
     /** แถบถึงตรงนี้แล้วผู้เล่นจะเห็นว่าบอทกำลังร่ายอะไร */
-    static final double REVEAL_AT = 0.5;
+    static final double REVEAL_AT = 0.2;
 
     private SpellRole role;
     private String word;
@@ -42,7 +42,7 @@ class Cast {
         return Math.min(1, elapsed / duration);
     }
 
-    /** บอททุกตัวเปิดหน้าที่เมื่อร่ายถึงครึ่งแถบ */
+    /** บอททุกตัวเปิดหน้าที่เมื่อร่ายถึง 20% ของแถบ */
     boolean isRevealed() {
         return progress() >= REVEAL_AT;
     }

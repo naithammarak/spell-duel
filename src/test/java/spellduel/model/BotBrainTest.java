@@ -57,9 +57,9 @@ class BotBrainTest {
     }
 
     @Test
-    void roleIsRevealedAtHalfway() {
-        assertFalse(castAt(0.4).isRevealed());
-        assertTrue(castAt(0.5).isRevealed());
+    void roleIsRevealedAtTwentyPercent() {
+        assertFalse(castAt(0.1).isRevealed());
+        assertTrue(castAt(0.2).isRevealed());
     }
 
     @Test

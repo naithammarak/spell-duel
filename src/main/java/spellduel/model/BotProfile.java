@@ -17,12 +17,33 @@ record BotProfile(String name, int hp, double cps, int accuracy, double reaction
 
     /** 2D array: แถว = บอท (0 Apprentice, 1 Auror, 2 Dark Wizard) */
     static final int[][] STATS = {
-            {60, 25, 70, 1500},
-            {90, 35, 85, 700},
-            {120, 45, 95, 400},
+            {80, 30, 75, 1000},
+            {100, 36, 85, 650},
+            {115, 41, 90, 500},
     };
     static final String[] NAMES = {"Apprentice", "Auror", "Dark Wizard"};
     static final Color[] ROBES = {new Color(60, 150, 80), new Color(170, 40, 50), new Color(110, 50, 140)};
+
+    /** ด่านหลังจากบอส: Dark Wizard ที่เก่งขึ้นทีละนิด ค่าเพิ่มต่อด่าน */
+    static final int EXTRA_HP = 5;
+    static final double EXTRA_CPS = 0.1;
+    static final double MAX_CPS = 8;
+    static final int MAX_ACCURACY = 99;
+    static final double MIN_REACTION = 0.1;
+
+    /** บอทของด่านนี้ ด่านเกินตาราง STATS ไม่มีวันหมด */
+    static BotProfile forLevel(int level) {
+        int last = STATS.length - 1;
+        if (level <= last) {
+            return row(level);
+        }
+        BotProfile boss = row(last);
+        int extra = level - last;
+        return new BotProfile(boss.name() + " +" + extra, boss.hp() + extra * EXTRA_HP,
+                Math.min(MAX_CPS, boss.cps() + extra * EXTRA_CPS),
+                Math.min(MAX_ACCURACY, boss.accuracy() + extra),
+                Math.max(MIN_REACTION, boss.reaction() - extra * 0.02), boss.robe());
+    }
 
     static BotProfile row(int level) {
         return fromRow(NAMES[level], STATS[level], ROBES[level]);
